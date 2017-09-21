@@ -28,6 +28,7 @@ def get_parser():
     return parser
 
 def extract_unbinned_spectrum(cube, region,
+                                    out_prefix =  '.'
                                   subtract_spectrum=None,
                                   only_bandpass=False,
                                   silent=False,
@@ -255,9 +256,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     path = args.file
     x_min, x_max, y_min, y_max = [args.xmin, args.xmax, args.ymin, args.ymax]
+    out_prefix = args.out_prefix
 
     cube = SpectralCube(path)
     mask = np.zeros((cube.dimx, cube.dimy), dtype=bool)
     mask[int(x_min):int(x_max), int(y_min):int(y_max)] = True
     region = np.nonzero(mask)
-    extract_unbinned_spectrum(cube, region, only_bandpass=True)
+    extract_unbinned_spectrum(cube, region, out_prefix=out_prefix, only_bandpass=True)
