@@ -5,36 +5,10 @@ import logging
 from orb.utils import io
 import argparse
 import orb.core
-
-def get_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--file",
-                        help="file to process")
-    parser.add_argument("-o", "--out_prefix",
-                        help="prefix for output path")
-    parser.add_argument("-xmin", "--xmin",
-                        help="Min index on the x axis, Default = 1000",
-                        default=1000)
-    parser.add_argument("-xmax", "--xmax",
-                        help="Max index on the x axis, Default = 1100",
-                        default=1100)
-    parser.add_argument("-ymin", "--ymin",
-                        help="Min index on the y axis, Default = 1000",
-                        default=1000)
-    parser.add_argument("-ymax", "--ymax",
-                        help="Max index on the y axis, Default = 1100",
-                        default=1100)
-
-
-
-    return parser
-
-def extract_unbinned_spectrum(cube, region, out_prefix = '.',
-                                subtract_spectrum=None,
-                                only_bandpass=False,
-                                silent=False,
-                                ret=False,
-                                save=True):
+def extract_unbinned_spectrum(cube, region,
+                                  subtract_spectrum=None,
+                                  only_bandpass=False,
+                                  silent=False):
     """
     Extract spectra from given region of the cube.
     All spectra in the defined region are extracted pixel by pixel.
@@ -43,9 +17,6 @@ def extract_unbinned_spectrum(cube, region, out_prefix = '.',
 
     :param region: A list of the indices of the pixels integrated
       in the returned spectrum.
-
-    :param out_prefix: (Optional) Prefix to add to the output path
-        Default = '.'
 
     :param subtract_spectrum: (Optional) Remove the given spectrum
       from the extracted spectrum before fitting
@@ -92,7 +63,7 @@ def extract_unbinned_spectrum(cube, region, out_prefix = '.',
         f = scipy.interpolate.UnivariateSpline(base_axis[~np.isnan(spectrum)],
                                                spectrum[~np.isnan(spectrum)],
                                                s=0, k=1, ext=1)
-        logging.info(str(new_axis.shape))
+        #logging.info(str(new_axis.shape))
         return f(new_axis)
 
     calibration_coeff_map = cube.get_calibration_coeff_map()
@@ -140,17 +111,15 @@ def extract_unbinned_spectrum(cube, region, out_prefix = '.',
         mask_x_proj *= np.arange(cube.dimx)
         x_min = int(np.nanmin(mask_x_proj))
         x_max = int(np.nanmax(mask_x_proj)) + 1
-        x_0, x_f = (x_min, x_max)
 
         mask_y_proj = np.nanmax(mask, axis=0).astype(float)
         mask_y_proj[np.nonzero(mask_y_proj == 0)] = np.nan
         mask_y_proj *= np.arange(cube.dimy)
         y_min = int(np.nanmin(mask_y_proj))
         y_max = int(np.nanmax(mask_y_proj)) + 1
-        y_0, y_f = (y_min, y_max)
+        y_0 = y_min
 
         spec_arr = np.zeros((x_max-x_min, y_max-y_min, len(new_axis)), dtype=float)
-
 
         if (x_max - x_min < cube.dimx / float(cube.config.DIV_NB)
             and y_max - y_min < cube.dimy / float(cube.config.DIV_NB)):
@@ -199,7 +168,9 @@ def extract_unbinned_spectrum(cube, region, out_prefix = '.',
                         for ijob in range(ncpus)]
 
                 for ijob, job in jobs:
-                    spec_arr[ii+ijob, y_min-y_0:y_max-y_0, :] = job()
+                    j = job()
+                    #print(spec_arr[ii+ijob, (y_min-y_0):(y_max-y_0), :].shape)
+                    spec_arr[ii+ijob,(y_min-y_0):(y_max-y_0), :] = j
 
                 if not silent:
                     progress.update(ii, info="ext column : {}/{}".format(
@@ -208,15 +179,16 @@ def extract_unbinned_spectrum(cube, region, out_prefix = '.',
             if not silent: progress.end()
 
     h = gen_cube_header(cube, reg_axis)
-    print(spec_arr.shape)
-    if save:
-        path = "{}/{}_{}_{}-{}_{}-{}_wl_grid".format(out_prefix,
-                                        cube.params['object_name'],
-                                        cube.params['filter_name'],
-                                        x_0, x_f, y_0, y_f,)
-        io.write_fits('%s.fits'%path, spec_arr, fits_header=h, overwrite=True)
-    if ret:
-        return reg_axis.astype(float), spec_arr
+    path = "./{}_{}_wl_grid".format(cube.params['object_name'],
+                                    cube.params['filter_name'],)
+    io.write_fits('%s.fits'%path, spec_arr, fits_header=h, overwrite=True)
+    #return reg_axis.astype(float), spec_arr
+
+def get_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--file",
+                        help="file to process")
+    return parser
 
 def gen_spectrum_header(cube, axis):
     h = cube.get_header()
@@ -245,14 +217,13 @@ def gen_spectrum_header(cube, axis):
 
 def gen_cube_header(cube, axis):
     h = cube.get_header()
-
     h['NAXIS3'] = len(axis)
+    #h['NAXIS2'] = 2
     h['CRPIX3'] = 1
     h['CRVAL3'] = axis[0]
     h['CDELT3'] = axis[1]-axis[0]
     h['CUNIT3'] = 'Angstroms'
     h['CTYPE3'] = 'LINEAR'
-    h['WAVTYPE'] = 'WAVELENGTH'
     return h
 
 if __name__ == '__main__':
@@ -261,12 +232,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     path = args.file
     cube = SpectralCube(path)
-
-    out_prefix = args.out_prefix
-    xmin, xmax, ymin, ymax = [args.xmin, args.xmax, args.ymin, args.ymax]
-
+    x = 0
+    y = 0
+    b = 2064
     mask = np.zeros((cube.dimx, cube.dimy), dtype=bool)
-    mask[int(xmin):int(xmax), int(ymin):int(ymax)] = True
+    mask[int(x):int(x+b), int(y):int(y+b)] = True
     region = np.nonzero(mask)
-
-    extract_unbinned_spectrum(cube, region, out_prefix, only_bandpass=False)
+    extract_unbinned_spectrum(cube, region, only_bandpass=True)

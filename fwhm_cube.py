@@ -36,6 +36,7 @@ def generate_fwhm_cube(cube, out_prefix):
     reg_axis = np.flip(reg_axis, 0)
     fwhm_cube = np.repeat(fwhm_cm1_map[:, :, np.newaxis], cube.dimz, axis=2)
     for z in range(fwhm_cube.shape[2]):
+        print(z)
         fwhm_cube[:, :, z] =  fwhm_cm1_map * reg_axis[z]**2/1e8
 
     h = cube.get_header()
