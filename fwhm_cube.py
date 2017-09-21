@@ -87,4 +87,8 @@ if __name__ == '__main__':
 
     out_prefix = args.out_prefix
 
+<<<<<<< HEAD
     generate_fwhm_cube(cube, out_prefix, only_bandpass = True)
+=======
+    generate_fwhm_cube(cube, out_prefix)
+>>>>>>> fde44d027f18a87a32055e35024f7dca52da2e5f
