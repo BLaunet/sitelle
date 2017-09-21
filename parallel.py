@@ -204,8 +204,12 @@ def extract_unbinned_spectrum(cube, region,
 
     h = gen_wavelength_header(cube, reg_axis)
     if save:
-        path = "./{}_{}_wl_grid".format(cube.params['object_name'],
-                                    cube.params['filter_name'],)
+        ext=''
+        if only_bandpass:
+            ext='_bandpass'
+        path = "./{}_{}_wl_grid{}".format(cube.params['object_name'],
+                                    cube.params['filter_name'],
+                                    ext)
         io.write_fits('%s.fits'%path, spec_arr, fits_header=h, overwrite=True)
     if return_spectrum:
         return reg_axis.astype(float), spec_arr
