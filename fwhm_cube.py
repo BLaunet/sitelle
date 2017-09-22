@@ -12,7 +12,8 @@ def get_parser():
     parser.add_argument("-f", "--file",
                         help="file to process")
     parser.add_argument("-o", "--out_prefix",
-                        help="prefix for output path")
+                        help="prefix for output path",
+                        default='.')
     parser.add_argument("-xmin", "--xmin",
                         help="Min index on the x axis, Default = 1000",
                         default=1000)
