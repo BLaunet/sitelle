@@ -47,7 +47,6 @@ def generate_fwhm_cube(cube, out_prefix='.', silent=False,
         reg_axis = reg_axis[i_min:i_max]
 
     fwhm_cube = np.repeat(fwhm_cm1_map[:, :, np.newaxis], len(reg_axis), axis=2)
-
     if not silent:
         progress = orb.core.ProgressBar(fwhm_cube.shape[2])
     for z in range(fwhm_cube.shape[2]):
@@ -86,9 +85,4 @@ if __name__ == '__main__':
     cube = SpectralCube(path)
 
     out_prefix = args.out_prefix
-
-<<<<<<< HEAD
     generate_fwhm_cube(cube, out_prefix, only_bandpass = True)
-=======
-    generate_fwhm_cube(cube, out_prefix)
->>>>>>> fde44d027f18a87a32055e35024f7dca52da2e5f
