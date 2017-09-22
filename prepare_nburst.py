@@ -27,6 +27,11 @@ def get_parser():
                         help="Max index on the y axis, Default = 2063",
                         default=2063)
     return parser
+def prepare_nburst():
+    # TODO: get the wavelength grid
+
+    # TODO: Generate FWHM cube
+    # TODO: Generate error cube
 
 def transpose(cubefile, errfile, fwhmfile, out_prefix='.'):
     cube, cube_h = io.read_fits(cubefile, return_header=True)
@@ -47,7 +52,7 @@ def transpose(cubefile, errfile, fwhmfile, out_prefix='.'):
     io.write_fits('{}_fwhm.fits', fits_data=fwhm, fits_header=cube_h, overwrite=True)
 
 
-def swap_axis_header(h, id1, id2):
+def swap_header_axis(h, ax1, ax2):
     tmp = {}
     tmp['NAXIS1'] = h['NAXIS1']
     tmp['CRPIX1'] = h['CRPIX1']
@@ -74,8 +79,6 @@ if __name__ == '__main__':
     parser = get_parser()
     args = parser.parse_args()
     cubefile = args.cube
-    errfile = args.error
-    fwhmfile = args.fwhm
     out_prefix = args.out_prefix
 
-    transpose(cubefile, errfile, fwhmfile, out_prefix)
+    prepare_nburst(cubefile, errfile, fwhmfile, out_prefix)
