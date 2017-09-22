@@ -27,7 +27,12 @@ def get_parser():
 
     return parser
 
+<<<<<<< HEAD
 def extract_unbinned_spectrum(cube, region,out_prefix ='.',
+=======
+def extract_unbinned_spectrum(cube, region,
+                                    out_prefix =  '.',
+>>>>>>> 8ef4c67f3deb45f86a7cfb473bb2e0b0eec4d7c3
                                   subtract_spectrum=None,
                                   only_bandpass=False,
                                   silent=False,
