@@ -44,8 +44,8 @@ def transpose(cubefile, errfile, fwhmfile, out_prefix='.'):
     cube_h = transpose_header(cube_h)
 
     path = "{}/{}_{}_".format(out_prefix,
-                                    cube.params['object_name'],
-                                    cube.params['filter_name'])
+                                    'M31',
+                                    'SN2')
     io.write_fits('{}_cube.fits', fits_data=cube, fits_header=cube_h, overwrite=True)
     io.write_fits('{}_err.fits', fits_data=err, fits_header=cube_h, overwrite=True)
     io.write_fits('{}_fwhm.fits', fits_data=fwhm, fits_header=cube_h, overwrite=True)
