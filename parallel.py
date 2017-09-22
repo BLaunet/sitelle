@@ -70,7 +70,6 @@ def extract_unbinned_spectrum(cube, region,out_prefix ='.',
 
     def _extract_spectrum_in_column(data_col, calib_coeff_col, mask_col,
                                     wavenumber, base_axis, step, order, new_axis):
-
         for icol in range(data_col.shape[0]):
             if mask_col[icol]:
                 corr = calib_coeff_col[icol]
@@ -84,11 +83,16 @@ def extract_unbinned_spectrum(cube, region,out_prefix ='.',
         return data_col
 
     def _interpolate_on_new_axis(spectrum, base_axis, new_axis):
-        f = scipy.interpolate.UnivariateSpline(base_axis[~np.isnan(spectrum)],
+        if np.all(np.isnan(spectrum)):
+            nan_spec = np.zeros_like(new_axis)
+            nan_spec.fill(np.nan)
+            return nan_spec
+        else:
+            f = scipy.interpolate.UnivariateSpline(base_axis[~np.isnan(spectrum)],
                                                spectrum[~np.isnan(spectrum)],
                                                s=0, k=1, ext=1)
-        #logging.info(str(new_axis.shape))
-        return f(new_axis)
+            #logging.info(str(new_axis.shape))
+            return f(new_axis)
 
     calibration_coeff_map = cube.get_calibration_coeff_map()
 
@@ -135,6 +139,8 @@ def extract_unbinned_spectrum(cube, region,out_prefix ='.',
         mask_x_proj *= np.arange(cube.dimx)
         x_min = int(np.nanmin(mask_x_proj))
         x_max = int(np.nanmax(mask_x_proj)) + 1
+        x_0 = x_min
+        x_f = x_max
 
         mask_y_proj = np.nanmax(mask, axis=0).astype(float)
         mask_y_proj[np.nonzero(mask_y_proj == 0)] = np.nan
@@ -142,6 +148,7 @@ def extract_unbinned_spectrum(cube, region,out_prefix ='.',
         y_min = int(np.nanmin(mask_y_proj))
         y_max = int(np.nanmax(mask_y_proj)) + 1
         y_0 = y_min
+        y_f = y_max
 
         spec_arr = np.zeros((x_max-x_min, y_max-y_min, len(new_axis)), dtype=float)
 
@@ -157,10 +164,27 @@ def extract_unbinned_spectrum(cube, region,out_prefix ='.',
 
 
         for iquad in range(0, QUAD_NB):
-
             if quadrant_extraction:
                 # x_min, x_max, y_min, y_max are now used for quadrants boundaries
                 x_min, x_max, y_min, y_max = cube.get_quadrant_dims(iquad)
+
+                #We make sure it's compatible with the extraction we want to do
+                if x_0 > x_max or x_f < x_min or y_0 > y_max or y_f < y_min:
+                    print('Skipping quadrant %s'%iquad)
+                    continue
+                if x_0 > x_min:
+                    print('Truncating quadrant dims : x_0 = {}, x_min = {}'.format(x_0, x_min))
+                    x_min = x_0
+                if x_f < x_max:
+                    print('Truncating quadrant dims : x_f = {}, x_max = {}'.format(x_f, x_max))
+                    x_max = x_f
+                if y_0 > y_min:
+                    print('Truncating quadrant dims : y_0 = {}, y_min = {}'.format(y_0, y_min))
+                    y_min = y_0
+                if y_f < y_max:
+                    print('Truncating quadrant dims : y_f = {}, y_max = {}'.format(y_f, y_max))
+                    y_max = y_f
+
             iquad_data = cube.get_data(x_min, x_max, y_min, y_max,
                                        0, cube.dimz, silent=silent)
 
@@ -194,11 +218,11 @@ def extract_unbinned_spectrum(cube, region,out_prefix ='.',
                 for ijob, job in jobs:
                     j = job()
                     #print(spec_arr[ii+ijob, (y_min-y_0):(y_max-y_0), :].shape)
-                    spec_arr[ii+ijob,(y_min-y_0):(y_max-y_0), :] = j
+                    spec_arr[(x_min-x_0)+ii+ijob,(y_min-y_0):(y_max-y_0), :] = j
 
                 if not silent:
                     progress.update(ii, info="ext column : {}/{}".format(
-                        ii, int(cube.dimx/float(DIV_NB))))
+                        ii, x_max-x_min))
             cube._close_pp_server(job_server)
             if not silent: progress.end()
 
@@ -207,7 +231,7 @@ def extract_unbinned_spectrum(cube, region,out_prefix ='.',
         ext=''
         if only_bandpass:
             ext='_bandpass'
-        path = "./{}_{}_wl_grid{}".format(cube.params['object_name'],
+        path = "{}/{}_{}_wl_grid{}".format(out_prefix, cube.params['object_name'],
                                     cube.params['filter_name'],
                                     ext)
         io.write_fits('%s.fits'%path, spec_arr, fits_header=h, overwrite=True)
