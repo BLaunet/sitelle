@@ -52,16 +52,16 @@ def transpose(cubefile, errfile, fwhmfile, out_prefix='.', xmin=0, xmax = 2047, 
             err = err[xmin:xmax, ymin, ymax]
         if fwhmfile:
             fwhm = fwhm[xmin, xmax]
-        ext='_{}_{}_{}_{}'.format(xmin, xmax, ymin, ymax)
+        ext='_{}-{}_{}-{}'.format(xmin, xmax, ymin, ymax)
         print(ext)
     if binsize:
         if cubefile:
             cube = rebin(cube, binsize)
         if errfile:
-            err = rebin(cube, binsize)
+            err = rebin(err, binsize)
         if fwhmfile:
-            fwhm = rebin(cube, binsize)
-        ext+='_rebinned'
+            fwhm = rebin(fwhm, binsize)
+        ext+='_rebinned_{}'.format(binsize)
     if cubefile:
         cube_h = transpose_header(cube_h)
     else:
@@ -78,13 +78,13 @@ def transpose(cubefile, errfile, fwhmfile, out_prefix='.', xmin=0, xmax = 2047, 
 def rebin(cube, binsize):
     ysize, xsize = cube.shape[1:]
     if ysize % binsize == 0:
-        new_ysize = ysize/binsize
+        new_ysize = ysize//binsize
     else:
-        new_ysize = ysize/binsize + 1
+        new_ysize = ysize//binsize + 1
     if xsize % binsize == 0:
-        new_xsize = xsize/binsize
+        new_xsize = xsize//binsize
     else:
-        new_xsize = xsize/binsize + 1
+        new_xsize = xsize//binsize + 1
 
     rebinned = np.zeros(shape=(cube.shape[0], new_ysize, new_xsize))
     ix = 0
