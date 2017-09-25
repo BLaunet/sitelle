@@ -3,14 +3,18 @@ import numpy as np
 import argparse
 from astropy.io import fits
 from orb.utils import io
+import sys
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--cube",
-                        help="path to the cube")
+                        help="path to the cube",
+                        default=None)
     parser.add_argument("-f", "--fwhm",
-                        help="path to the fwhm cube")
+                        help="path to the fwhm cube",
+                        default=None)
     parser.add_argument("-e", "--error",
-                        help="path to the error cube")
+                        help="path to the error cube",
+                        default=None)
     parser.add_argument("-o", "--out_prefix",
                         help="prefix for output path",
                         default='.')
@@ -32,29 +36,44 @@ def get_parser():
     return parser
 
 def transpose(cubefile, errfile, fwhmfile, out_prefix='.', xmin=0, xmax = 2047, ymin = 0, ymax = 2063, binsize=None):
-    hdu = fits.open(cubefile)
-    cube, cube_h = [hdu[0].data, hdu[0].header]
-    err = fits.open(errfile)[0].data
-    fwhm = fits.open(fwhmfile)[0].data
+    if cubefile:
+        hdu = fits.open(cubefile)
+        cube, cube_h = [hdu[0].data, hdu[0].header]
+    if errfile:
+        err = fits.open(errfile)[0].data
+    if fwhmfile:
+        fwhm = fits.open(fwhmfile)[0].data
 
     ext=''
     if xmin != 0 or xmax != 2047 or ymin !=0 or ymax != 2063:
-        cube = cube[xmin:xmax, ymin:ymax]
-        err = err[xmin:xmax, ymin, ymax]
-        fwhm = fwhm[xmin, xmax]
+        if cubefile:
+            cube = cube[xmin:xmax, ymin:ymax]
+        if errfile:
+            err = err[xmin:xmax, ymin, ymax]
+        if fwhmfile:
+            fwhm = fwhm[xmin, xmax]
         ext='_{}_{}_{}_{}'.format(xmin, xmax, ymin, ymax)
         print(ext)
     if binsize:
-        cube = rebin(cube, binsize)
-        err = rebin(cube, binsize)
-        fwhm = rebin(cube, binsize)
+        if cubefile:
+            cube = rebin(cube, binsize)
+        if errfile:
+            err = rebin(cube, binsize)
+        if fwhmfile:
+            fwhm = rebin(cube, binsize)
         ext+='_rebinned'
-    cube_h = transpose_header(cube_h)
+    if cubefile:
+        cube_h = transpose_header(cube_h)
+    else:
+        cube_h = None
 
     path = "{}/{}_{}{}".format(out_prefix,'M31', 'SN2', ext)
-    io.write_fits('{}_cube.fits'.format(path), fits_data=cube, fits_header=cube_h, overwrite=True)
-    io.write_fits('{}_err.fits'.format(path), fits_data=err, fits_header=cube_h, overwrite=True)
-    io.write_fits('{}_fwhm.fits'.format(path), fits_data=fwhm, fits_header=cube_h, overwrite=True)
+    if cubefile:
+        io.write_fits('{}_cube.fits'.format(path), fits_data=cube, fits_header=cube_h, overwrite=True)
+    if errfile:
+        io.write_fits('{}_err.fits'.format(path), fits_data=err, fits_header=cube_h, overwrite=True)
+    if fwhmfile:
+        io.write_fits('{}_fwhm.fits'.format(path), fits_data=fwhm, fits_header=cube_h, overwrite=True)
 
 def rebin(cube, binsize):
     ysize, xsize = cube.shape[1:]
@@ -107,6 +126,11 @@ if __name__ == '__main__':
     cubefile = args.cube
     errfile = args.error
     fwhmfile = args.fwhm
+
+    if not cubefile and not errfile and not fwhmfile:
+        print('No file path has been provided !')
+        sys.exit()
+
     out_prefix = args.out_prefix
     binsize = args.binsize
     if binsize:
