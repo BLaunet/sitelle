@@ -1,12 +1,8 @@
 from __future__ import division
-from orcs.process import SpectralCube
-import orb
 import numpy as np
-import logging
-from orb.utils import io
 import argparse
-import orb.core
-
+from astropy.io import fits
+from orb.utils import io
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--cube",
@@ -47,7 +43,7 @@ def transpose(cubefile, errfile, fwhmfile, out_prefix='.', xmin=0, xmax = 2047, 
         err = err[xmin:xmax, ymin, ymax]
         fwhm = fwhm[xmin, xmax]
         ext='_{}_{}_{}_{}'.format(xmin, xmax, ymin, ymax)
-
+        print(ext)
     if binsize:
         cube = rebin(cube, binsize)
         err = rebin(cube, binsize)
@@ -55,7 +51,7 @@ def transpose(cubefile, errfile, fwhmfile, out_prefix='.', xmin=0, xmax = 2047, 
         ext+='_rebinned'
     cube_h = transpose_header(cube_h)
 
-    path = "{}/{}_{}".format(out_prefix,'M31', 'SN2', ext)
+    path = "{}/{}_{}{}".format(out_prefix,'M31', 'SN2', ext)
     io.write_fits('{}_cube.fits'.format(path), fits_data=cube, fits_header=cube_h, overwrite=True)
     io.write_fits('{}_err.fits'.format(path), fits_data=err, fits_header=cube_h, overwrite=True)
     io.write_fits('{}_fwhm.fits'.format(path), fits_data=fwhm, fits_header=cube_h, overwrite=True)
@@ -113,6 +109,8 @@ if __name__ == '__main__':
     fwhmfile = args.fwhm
     out_prefix = args.out_prefix
     binsize = args.binsize
-    xmin, xmax, ymin, ymax = [args.xmin, args.xmax, args.ymin, args.ymax]
+    if binsize:
+        binsize = int(binsize)
+    xmin, xmax, ymin, ymax = map(int,[args.xmin, args.xmax, args.ymin, args.ymax])
 
     transpose(cubefile, errfile, fwhmfile, out_prefix, xmin, xmax, ymin, ymax, binsize)
