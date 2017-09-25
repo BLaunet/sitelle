@@ -19,37 +19,68 @@ def get_parser():
                         help="prefix for output path",
                         default='.')
     parser.add_argument("-xmin", "--xmin",
-                        help="Min index on the x axis, Default = 1000",
-                        default=1000)
+                        help="Min index on the x axis, Default = 0",
+                        default=0)
     parser.add_argument("-xmax", "--xmax",
-                        help="Max index on the x axis, Default = 1100",
-                        default=1100)
+                        help="Max index on the x axis, Default = 2047",
+                        default=2047)
     parser.add_argument("-ymin", "--ymin",
-                        help="Min index on the y axis, Default = 1000",
-                        default=1000)
+                        help="Min index on the y axis, Default = 0",
+                        default=0)
     parser.add_argument("-ymax", "--ymax",
-                        help="Max index on the y axis, Default = 1100",
-                        default=1100)
+                        help="Max index on the y axis, Default = 2063",
+                        default=2063)
+    parser.add_argument("-bin", "--binsize",
+                        help="If a value is passed, the cubes are binned with this value as binsize",
+                        default=None)
     return parser
 
-def transpose(cubefile, errfile, fwhmfile, out_prefix='.'):
-    cube, cube_h = io.read_fits(cubefile, return_header=True)
-    err = io.read_fits(errfile)
-    fwhm = io.read_fits(fwhmfile)
+def transpose(cubefile, errfile, fwhmfile, out_prefix='.', xmin=0, xmax = 2047, ymin = 0, ymax = 2063, binsize=None):
+    hdu = fits.open(cubefile)
+    cube, cube_h = [hdu[0].data, hdu[0].header]
+    err = fits.open(errfile)[0].data
+    fwhm = fits.open(fwhmfile)[0].data
 
-    cube = cube.T
-    err = err.T
-    fwhm = fwhm.T
+    ext=''
+    if xmin != 0 or xmax != 2047 or ymin !=0 or ymax != 2063:
+        cube = cube[xmin:xmax, ymin:ymax]
+        err = err[xmin:xmax, ymin, ymax]
+        fwhm = fwhm[xmin, xmax]
+        ext='_{}_{}_{}_{}'.format(xmin, xmax, ymin, ymax)
 
+    if binsize:
+        cube = rebin(cube, binsize)
+        err = rebin(cube, binsize)
+        fwhm = rebin(cube, binsize)
+        ext+='_rebinned'
     cube_h = transpose_header(cube_h)
 
-    path = "{}/{}_{}_".format(out_prefix,
-                                    'M31',
-                                    'SN2')
-    io.write_fits('{}_cube.fits', fits_data=cube, fits_header=cube_h, overwrite=True)
-    io.write_fits('{}_err.fits', fits_data=err, fits_header=cube_h, overwrite=True)
-    io.write_fits('{}_fwhm.fits', fits_data=fwhm, fits_header=cube_h, overwrite=True)
+    path = "{}/{}_{}".format(out_prefix,'M31', 'SN2', ext)
+    io.write_fits('{}_cube.fits'.format(path), fits_data=cube, fits_header=cube_h, overwrite=True)
+    io.write_fits('{}_err.fits'.format(path), fits_data=err, fits_header=cube_h, overwrite=True)
+    io.write_fits('{}_fwhm.fits'.format(path), fits_data=fwhm, fits_header=cube_h, overwrite=True)
 
+def rebin(cube, binsize):
+    ysize, xsize = cube.shape[1:]
+    if ysize % binsize == 0:
+        new_ysize = ysize/binsize
+    else:
+        new_ysize = ysize/binsize + 1
+    if xsize % binsize == 0:
+        new_xsize = xsize/binsize
+    else:
+        new_xsize = xsize/binsize + 1
+
+    rebinned = np.zeros(shape=(cube.shape[0], new_ysize, new_xsize))
+    ix = 0
+    for x in range(new_xsize-1):
+        iy = 0
+        for y in range(new_ysize-1):
+            rebinned[:, y, x] = np.apply_along_axis(np.sum, 1, np.apply_along_axis(np.sum, 1, cube[:, (ix*binsize):(ix+1)*binsize,(iy*binsize):(iy+1)*binsize]))
+            iy+=1
+        ix+=1
+    rebinned[:, -1, -1] =  np.apply_along_axis(np.sum, 1, np.apply_along_axis(np.sum, 1, cube[:, (ix*binsize):,(iy*binsize):]))
+    return rebinned
 
 def transpose_header(h):
     tmp = {}
@@ -81,5 +112,7 @@ if __name__ == '__main__':
     errfile = args.error
     fwhmfile = args.fwhm
     out_prefix = args.out_prefix
+    binsize = args.binsize
+    xmin, xmax, ymin, ymax = [args.xmin, args.xmax, args.ymin, args.ymax]
 
-    transpose(cubefile, errfile, fwhmfile, out_prefix)
+    transpose(cubefile, errfile, fwhmfile, out_prefix, xmin, xmax, ymin, ymax, binsize)
