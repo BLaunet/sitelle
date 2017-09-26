@@ -63,11 +63,11 @@ def transpose(file, type, out_prefix='.', xmin=0, xmax = 2047, ymin = 0, ymax = 
 def rebin(cube, binsize, type):
     def special(data, type):
         if type=='CUBE':
-            return np.sum( binned_data , (1,2)) #We sum the spectra
+            return np.sum( data , (1,2)) #We sum the spectra
         elif type=='ERR':
-            return np.sqrt( np.sum( np.power(binned_data,2) , (1,2))) #sum of the square
+            return np.sqrt( np.sum( np.power(data,2) , (1,2))) #sum of the square
         elif type=='FWHM':
-            return np.mean(binned_data, axis=(1,2))
+            return np.mean(data, axis=(1,2))
     ysize, xsize = cube.shape[1:]
     if ysize % binsize == 0:
         new_ysize = ysize//binsize
