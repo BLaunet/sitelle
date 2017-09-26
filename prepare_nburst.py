@@ -35,47 +35,39 @@ def get_parser():
                         default=None)
     return parser
 
-def transpose(cubefile, errfile, fwhmfile, out_prefix='.', xmin=0, xmax = 2047, ymin = 0, ymax = 2063, binsize=None):
-    if cubefile:
-        hdu = fits.open(cubefile)
-        cube, cube_h = [hdu[0].data, hdu[0].header]
-    if errfile:
-        err = fits.open(errfile)[0].data
-    if fwhmfile:
-        fwhm = fits.open(fwhmfile)[0].data
 
-    ext=''
-    if xmin != 0 or xmax != 2047 or ymin !=0 or ymax != 2063:
-        if cubefile:
-            cube = cube[xmin:xmax, ymin:ymax]
-        if errfile:
-            err = err[xmin:xmax, ymin, ymax]
-        if fwhmfile:
-            fwhm = fwhm[xmin, xmax]
-        ext='_{}-{}_{}-{}'.format(xmin, xmax, ymin, ymax)
-        print(ext)
-    if binsize:
-        if cubefile:
-            cube = rebin(cube, binsize)
-        if errfile:
-            err = rebin(err, binsize)
-        if fwhmfile:
-            fwhm = rebin(fwhm, binsize)
-        ext+='_rebinned_{}'.format(binsize)
-    if cubefile:
+
+def transpose(file, type, out_prefix='.', xmin=0, xmax = 2047, ymin = 0, ymax = 2063, binsize=None):
+
+    hdu = fits.open(file)[0]
+    cube = hdu.data
+    if type=='CUBE':
+        cube_h = hdu.header
         cube_h = transpose_header(cube_h)
     else:
         cube_h = None
 
-    path = "{}/{}_{}{}".format(out_prefix,'M31', 'SN2', ext)
-    if cubefile:
-        io.write_fits('{}_cube.fits'.format(path), fits_data=cube, fits_header=cube_h, overwrite=True)
-    if errfile:
-        io.write_fits('{}_err.fits'.format(path), fits_data=err, fits_header=cube_h, overwrite=True)
-    if fwhmfile:
-        io.write_fits('{}_fwhm.fits'.format(path), fits_data=fwhm, fits_header=cube_h, overwrite=True)
+    cube = cube[xmin:xmax, ymin:ymax]
 
-def rebin(cube, binsize):
+    ext=''
+    if xmin != 0 or xmax != 2047 or ymin !=0 or ymax != 2063:
+        ext='_{}-{}_{}-{}'.format(xmin, xmax, ymin, ymax)
+
+    if binsize:
+        cube = rebin(cube, binsize, type)
+        ext+='_rebinned_{}'.format(binsize)
+
+    path = "{}/{}_{}{}".format(out_prefix,'M31', 'SN2', ext)
+    io.write_fits('{}_{}.fits'.format(path, str.lower(type)), fits_data=cube, fits_header=cube_h, overwrite=True)
+
+def rebin(cube, binsize, type):
+    def special(data, type):
+        if type=='CUBE':
+            return np.sum( binned_data , (1,2)) #We sum the spectra
+        elif type=='ERR':
+            return np.sqrt( np.sum( np.power(binned_data,2) , (1,2))) #sum of the square
+        elif type=='FWHM':
+            return np.mean(binned_data, axis=(1,2))
     ysize, xsize = cube.shape[1:]
     if ysize % binsize == 0:
         new_ysize = ysize//binsize
@@ -91,10 +83,10 @@ def rebin(cube, binsize):
     for x in range(new_xsize-1):
         iy = 0
         for y in range(new_ysize-1):
-            rebinned[:, y, x] = np.apply_along_axis(np.sum, 1, np.apply_along_axis(np.sum, 1, cube[:, (ix*binsize):(ix+1)*binsize,(iy*binsize):(iy+1)*binsize]))
+            rebinned[:, y, x] = special(cube[:, (ix*binsize):(ix+1)*binsize,(iy*binsize):(iy+1)*binsize], type)
             iy+=1
         ix+=1
-    rebinned[:, -1, -1] =  np.apply_along_axis(np.sum, 1, np.apply_along_axis(np.sum, 1, cube[:, (ix*binsize):,(iy*binsize):]))
+    rebinned[:, -1, -1] =  special(cube[:, (ix*binsize):,(iy*binsize):], type)
     return rebinned
 
 def transpose_header(h):
@@ -137,4 +129,9 @@ if __name__ == '__main__':
         binsize = int(binsize)
     xmin, xmax, ymin, ymax = map(int,[args.xmin, args.xmax, args.ymin, args.ymax])
 
-    transpose(cubefile, errfile, fwhmfile, out_prefix, xmin, xmax, ymin, ymax, binsize)
+    if cubefile:
+        transpose(cubefile, 'CUBE', out_prefix, xmin, xmax, ymin, ymax, binsize)
+    if errfile:
+        transpose(errfile, 'ERR', out_prefix, xmin, xmax, ymin, ymax, binsize)
+    if fwhmfile:
+        transpose(fwhmfile, 'FWHM', out_prefix, xmin, xmax, ymin, ymax, binsize)
