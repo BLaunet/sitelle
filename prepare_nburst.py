@@ -4,6 +4,8 @@ import argparse
 from astropy.io import fits
 from orb.utils import io
 import sys
+import os
+
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--cube",
@@ -56,8 +58,9 @@ def transpose(file, type, out_prefix='.', xmin=0, xmax = 2047, ymin = 0, ymax = 
     if binsize:
         cube = rebin(cube, binsize, type)
         ext+='_rebinned_{}'.format(binsize)
-
-    path = "{}/{}_{}{}".format(out_prefix,'M31', 'SN2', ext)
+    
+    filter = os.path.basename(file).split('_')[1]
+    path = "{}/{}_{}{}".format(out_prefix,'M31', filter, ext)
     io.write_fits('{}_{}.fits'.format(path, str.lower(type)), fits_data=cube, fits_header=cube_h, overwrite=True)
 
 def rebin(cube, binsize, type):
