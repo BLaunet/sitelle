@@ -90,8 +90,6 @@ def line_velocity_map(cubefile, nburstfile, out_prefix, silent=False):
     for i in range(len(binRange)-1):
         sub_map = fit_over_bin_range(cube, fit_table, binMap, map(int, (binRange[i], binRange[i+1])))
         V_map[np.where(~np.isnan(sub_map))] = sub_map[np.where(~np.isnan(sub_map))]
-    cube._close_pp_server(job_server)
-
 
     np.save('velmap.npy', V_map)
 
