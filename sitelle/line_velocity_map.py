@@ -9,11 +9,14 @@ import orb.core
 import scipy
 from multiprocessing import Pool
 from functools import partial
+import sys
 
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--cube",
                         help="Original hdf5 cube")
+    parser.add_argument('-u', "--usage", action="store_true",
+                        help="Usage of the script")
     parser.add_argument('-n', "--nburst",
                         help="Nburst fit")
     parser.add_argument("-o", "--out_prefix",
@@ -29,7 +32,7 @@ def subtract_fitted_spectra(nburst_axis, nburst_fit, cube, binMap, binNumber, si
     cm1_fit = f(cube.params.base_axis.astype(float))
 
     #We redefine the region corresponding to the bin in the global image
-    region = [x for x in (np.where(binMap == binNumber))]
+    region = (np.where(binMap == binNumber))
     mask = np.zeros((cube.dimx, cube.dimy), dtype=np.uint8)
     mask[region] = 1
 
@@ -44,24 +47,30 @@ def subtract_fitted_spectra(nburst_axis, nburst_fit, cube, binMap, binNumber, si
     return a, s-cm1_fit, to_subtract, region
 
 def fit_over_bin_range(cube, fit_table, binMap, binRange):
-    V_map = np.full(binMap.shape, np.nan)
+    fit_map = np.full(binMap.shape, np.nan,  dtype=object)
     for b in range(*binRange):
+        print('Bin : %s'%b)
         nburst_axis = fit_table['WAVE'][b,:]
         nburst_spectrum = fit_table['FLUX'][b,:]
         nburst_fit = fit_table['FIT'][b,:]
         if np.all(np.isnan(nburst_fit)):
             continue
         axis, res, to_subtract, region = subtract_fitted_spectra(nburst_axis, nburst_fit, cube, binMap, b, silent=True)
-        a, s, fit = cube.fit_lines_in_integrated_region(region,
-                                                        ['[OIII]4959', '[OIII]5007'],
-                                                        fmodel='sincgauss',
-                                                        pos_def=['1'],
-                                                        pos_cov=-300.0,
-                                                        subtract_spectrum=to_subtract,
-                                                        silent = True)
-        if fit != []:
-            V_map[np.where(binMap==b)] = fit['velocity'][0]
-    return V_map
+        for pos_cov in np.linspace(0,-800,6):
+            a, s, fit = cube.fit_lines_in_integrated_region(region,
+                                                            ['[OIII]4959', '[OIII]5007'],
+                                                            fmodel='sincgauss',
+                                                            pos_def=['1'],
+                                                            pos_cov=pos_cov,
+                                                            subtract_spectrum=to_subtract,
+                                                            silent = True)
+            if fit != [] and fit['chi2'] < 2:
+                fit_map[np.where(binMap==b)] = fit
+                print('Found V = %s'%fit['velocity'][0])
+                break
+
+    np.save('fit_map_%s_%s.npy'%(binRange[0], binRange[1]), fit_map)
+    return fit_map
 
 
 def line_velocity_map(cubefile, nburstfile, out_prefix, silent=False):
@@ -85,13 +94,13 @@ def line_velocity_map(cubefile, nburstfile, out_prefix, silent=False):
     binRange = np.linspace(0, len(fit_table) - len(fit_table)%(ncpus-1) ,ncpus-1, endpoint=False)
     binRange = np.append(binRange, len(fit_table))
 
-    V_map = np.zeros_like(binMap, dtype=float)
-    
+    fit_map = np.zeros_like(binMap, dtype=object)
+
     for i in range(len(binRange)-1):
         sub_map = fit_over_bin_range(cube, fit_table, binMap, map(int, (binRange[i], binRange[i+1])))
-        V_map[np.where(~np.isnan(sub_map))] = sub_map[np.where(~np.isnan(sub_map))]
+        fit_map[np.where(~np.isnan(sub_map))] = sub_map[np.where(~np.isnan(sub_map))]
 
-    np.save('velmap.npy', V_map)
+    np.save('velmap.npy', fit_map)
 
 
 
@@ -103,5 +112,10 @@ if __name__ == '__main__':
     cubefile = args.cube
     nburstfile = args.nburst
     out_prefix = args.out_prefix
-
-    line_velocity_map(cubefile, nburstfile, out_prefix)
+    if args.usage:
+        print("""
+        Usage examples:
+        python line_velocity_map.py -c ../../fits/orig/M31_SN2.merged.cm1.1.0.hdf5 -n ../../nburst/M31_SN2_rebinned_48_fitted.fits -o ../../Notebooks/
+        """)
+    else:
+        line_velocity_map(cubefile, nburstfile, out_prefix)
