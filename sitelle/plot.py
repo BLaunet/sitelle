@@ -35,9 +35,16 @@ def plot_map(map, region=None, projection=None,
     im = ax.imshow(map.T, origin='bottom-left', **kwargs)
     ax.set_title(title)
     if region:
-        mask = np.zeros_like(map)
-        mask[region] = True
-        ax.contour(mask.T, 1, colors='r')
+        if isinstance(region[0], tuple): #We have a list of regions:
+            for r in region:
+                mask = np.zeros_like(map)
+                mask[r] = True
+                ax.contour(mask.T, 1, colors='r')
+        else:
+            mask = np.zeros_like(map)
+            mask[region] = True
+            ax.contour(mask.T, 1, colors='r')
+
     if xlims:
         ax.set_xlim(xlims)
     if ylims:
