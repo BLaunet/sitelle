@@ -5,7 +5,7 @@ from orb.utils import io
 import argparse
 import os
 from scipy.interpolate import UnivariateSpline
-from sitelle.plot import *
+#from sitelle.plot import *
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -40,8 +40,9 @@ def transform(cube, x, y, binsize, sky_lines, type):
                                                 fwhm_def='fixed',
                                                 nofilter=False,
                                                 pos_cov=0 )
-        for line in fit['fitted_models']['Cm1LinesModel']:
-            spectra -= line
+        if fit != []:
+            for line in fit['fitted_models']['Cm1LinesModel']:
+                spectra -= line
         return spectra
     elif type=='ERR':
         flux_err = cube[x*binsize:(x+1)*binsize, y*binsize:(y+1)*binsize]
@@ -158,12 +159,13 @@ def process(cubefile, binsize, type, only_bandpass=True):
     elif type == 'FWHM':
         data = cube.get_fwhm_map()
     elif type == 'CUBE':
-        cube = cube
+        data = cube
     for x in range(new_xsize):
         for y in range(new_ysize):
             print '({},{})'.format(x,y)
             rebinned[x, y, :] = transform(data, x, y, binsize, sky_lines, type)
-    plot_map(rebinned[:,:,200], xlims=(0,new_xsize), ylims=(0, new_ysize))
+        np.save('bak.npy', rebinned)
+    #plot_map(rebinned[:,:,200], xlims=(0,new_xsize), ylims=(0, new_ysize))
 
     print('Regridding...')
     regrided, header = wl_regrid(cube, rebinned, only_bandpass, type)
