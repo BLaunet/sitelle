@@ -30,11 +30,11 @@ def parallel_apply_over_map(func1d, cube, *args, **kwargs):
     job_server, ncpus = init_pp_server(ncpus,silent=False)
     jobs = [job_server.submit(
         _func_vec,
-        args=(sub_cube, sub_map, args, kwargs),
+        args=(func1d, sub_cube, sub_map, args, kwargs),
         modules=('import numpy as np',
                  'import orb.utils.spectrum',
                  'import orb.utils.vector'),
-        depfuncs=(func1d,))
+        depfuncs=())
             for sub_cube, sub_map in zip(np.array_split(cube, ncpus), np.array_split(secondary_map, ncpus))]
 
     for job in jobs:
@@ -42,7 +42,7 @@ def parallel_apply_over_map(func1d, cube, *args, **kwargs):
     close_pp_server(job_server)
     return individual_results
 
-def _func_vec((func1d, sub_cube, sub_map, args, kwargs)):
+def _func_vec(func1d, sub_cube, sub_map, args, kwargs):
     result = np.empty(sub_cube.shape)
     for x, y in np.ndindex(sub_cube.shape[:2]):
         result[x, y, :] = func1d(sub_cube[x, y, :], sub_map[x, y], *args, **kwargs)
