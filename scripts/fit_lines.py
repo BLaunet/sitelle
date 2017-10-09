@@ -13,9 +13,9 @@ cube_binned = io.read_fits('../fits/M31_SN3_rebinned_48x48.fits')
 velocity_guess_map_binned = np.load('../fits/velocity_guess_map_48x48.npy')
 
 ##Smaller
-cube_binned = cube_binned[:10, :10, :]
-theta_binned = theta_binned[:10,:10]
-velocity_guess_map_binned = velocity_guess_map_binned[:10,:10]
+#cube_binned = cube_binned[:10, :10, :]
+#theta_binned = theta_binned[:10,:10]
+#velocity_guess_map_binned = velocity_guess_map_binned[:10,:10]
 
 lines=['[NII]6548','[NII]6583', 'Halpha', '[SII]6716', '[SII]6731']
 kwargs={'fmodel':'sincgauss', 'pos_def':'1'}
@@ -25,13 +25,14 @@ inputparams = SN3.inputparams
 params = SN3.params
 
 def _func_vec(sub_cube, sub_theta_map, sub_V_map, inputparams, params, lines):
-    line_spectra = np.empty(sub_cube.shape, dtype=float)
-    fit_params = np.empty(sub_cube.shape[:2], dtype=object)
+    line_spectra = np.zeros(sub_cube.shape, dtype=float)
+    fit_params = np.zeros(sub_cube.shape[:2], dtype=object)
     for x, y in np.ndindex(sub_cube.shape[:2]):
         fit = fit_lines_in_spectrum(params, inputparams, 1e10, sub_cube[x, y, :],
                               sub_theta_map[x, y], pos_cov=sub_V_map[x,y], snr_guess=None)
-        line_spectra[x, y, :] = np.sum(fit['fitted_models']['Cm1LinesModel'], 0)
-        fit_params[x,y] = parse_line_params(lines,fit)
+        if fit != []
+            line_spectra[x, y, :] = np.sum(fit['fitted_models']['Cm1LinesModel'], 0)
+            fit_params[x,y] = parse_line_params(lines,fit)
     return line_spectra, fit_params
 
 job_server, ncpus = init_pp_server(multiprocessing.cpu_count(),silent=False)
