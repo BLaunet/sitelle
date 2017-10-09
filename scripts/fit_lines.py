@@ -28,9 +28,10 @@ def _func_vec(sub_cube, sub_theta_map, sub_V_map, inputparams, params, lines):
     line_spectra = np.zeros(sub_cube.shape, dtype=float)
     fit_params = np.zeros(sub_cube.shape[:2], dtype=object)
     for x, y in np.ndindex(sub_cube.shape[:2]):
+        print x,y
         fit = fit_lines_in_spectrum(params, inputparams, 1e10, sub_cube[x, y, :],
                               sub_theta_map[x, y], pos_cov=sub_V_map[x,y], snr_guess=None)
-        if fit != []
+        if fit != []:
             line_spectra[x, y, :] = np.sum(fit['fitted_models']['Cm1LinesModel'], 0)
             fit_params[x,y] = parse_line_params(lines,fit)
     return line_spectra, fit_params
