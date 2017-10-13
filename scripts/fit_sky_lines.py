@@ -1,3 +1,5 @@
+#Classical fit of the skylines : can be very long and very wrong
+
 from orb.utils import io
 import multiprocessing
 import numpy as np
