@@ -1,3 +1,5 @@
+from astropy.io import fits
+
 def parameter_map(table, param, binMap):
     """
     Return a 2D map of the given parameter
@@ -13,3 +15,9 @@ def read(filename):
     hdu = fits.open(filename)
     bin_table = hdu[1].data
     fit_table = hdu[2].data
+    return bin_table, fit_table
+
+def extract_spectrum(fit_table, binNumber):
+    axis = fit_table['WAVE'][binNumber,:]
+    fit = fit_table['FIT'][binNumber,:]
+    return axis,fit

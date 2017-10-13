@@ -1,9 +1,29 @@
 from orb.fit import Lines
 import pandas as pd
 import numpy as np
+from scipy.interpolate import UnivariateSpline
+from scipy.optimize import curve_fit
+
+def sky_model_to_remove(spectrum, input_axis, skymodel, nb_pixels):
+
+    sky_interpolator = UnivariateSpline(input_axis, skymodel, s=0)
+    fit_vector = np.zeros_like(spectrum)
+
+    imin, imax = np.searchsorted(input_axis, [14700,15430])
+    a = input_axis[imin:imax]
+    s = spectrum[imin:imax]/nb_pixels
+    scale = np.nanmax(s) - np.nanmedian(s)
+    def model(x, h, v):
+        shift = line_shift(v, 15000)
+        sky_shifted = sky_interpolator(a.astype(float)+shift)
+        return h + UnivariateSpline(a, sky_shifted, s=0)(x)
+
+    popt, pcov = curve_fit(model, a, s, p0=[scale,-75.])
+    fit_vector[imin:imax] = model(a, *popt)-popt[0]
+
+    return fit_vector
 
 def parse_line_params(rest_lines, fit, error = True, wavenumber = True):
-
     #Potential names
     lines_cm1 = list()
     names = False
