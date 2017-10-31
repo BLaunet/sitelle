@@ -181,16 +181,18 @@ class InteractivePlotter:
 
 
 class SpectraPlotter:
-    def __init__(self, axis, original_cube, fit_cube, plot_axis, title):
+    def __init__(self, axis, original_cube, fit_cube, plot_axis, projection=None, **kwargs):
         self.axis = axis
         self.original_cube = original_cube
         self.fit_cube = fit_cube
         self.residual = original_cube - fit_cube
         self.plot_axis = plot_axis
+        self.projection = projection
+        self.kwargs = kwargs
 
         self.patch = None
         self.annotation = None
-        self.title = title
+        self.annotation2 = None
     def connect(self, figure):
         'connect to all the events we need'
         self.figure = figure
@@ -210,11 +212,8 @@ class SpectraPlotter:
         plot_spectra(self.axis, self.original_cube[x,y,:],
                          self.axis, self.fit_cube[x,y,:],
                          self.axis, self.residual[x,y,:],
-                         label=['Original', 'Residual', 'Subtracted'],
                          ax = self.plot_axis,
-                         xlims=(14750, 15350),
-                         legendloc = 'center left',
-                         title = self.title)
+                         **self.kwargs)
         self.plot_axis.get_figure().show()
 
     def on_motion(self, event):
@@ -228,11 +227,18 @@ class SpectraPlotter:
             ax.add_patch(self.patch)
             data = ax.images[0].get_array()
             self.annotation = ax.annotate('V = %f km/s'%(data.T[x,y]) ,(0,1.1), xycoords='axes fraction' )
+            if self.projection is not None:
+                ra, dec = self.projection.pix2world((x*48+24, y*48+24))[0]
+                self.annotation2 = ax.annotate('RA = %s \nDEC = %s'%(ra,dec) ,(0,1.15), xycoords='axes fraction' )
         elif self.patch.xy == (x-0.5,y-0.5): return
         else:
             self.patch.remove()
             self.patch = None
             self.annotation.remove()
+            if self.projection is not None:
+                self.annotation2.remove()
+
+
 
 
         self.figure.canvas.draw()
