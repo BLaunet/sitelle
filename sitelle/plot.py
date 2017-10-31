@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.patches as patches
 
 ## Plot a 2D map
 def plot_map(map, region=None, projection=None,
@@ -53,7 +54,7 @@ def plot_map(map, region=None, projection=None,
         fig.colorbar(im)
     if projection:
         plt.grid()
-    plt.show()
+    return fig
 
 
 def plot_spectra(*args, **kwargs):
@@ -67,24 +68,51 @@ def plot_spectra(*args, **kwargs):
     :param label: list of labels of same size as number of plots
     :param figsize:
     :param facecolor:
-
+    :param vlines: list of vertical lines x position
+    :param annotations: list of annonations to add to the plot. Each annotation should be a tuple (text, position)
+    :param legendloc: keyword to locate the lmegend (default = 'best')
+    :param title: title to add
+    :param ax: ax where to plot
+    :param return: returns the created figure
     """
     xlims = kwargs.pop('xlims', None)
     ylims = kwargs.pop('ylims', None)
     label = kwargs.pop('label', '')
+    annotations = kwargs.pop('annotations', None)
+    vlines = kwargs.pop('vlines', None)
+    legendloc = kwargs.pop('legendloc', 'best')
+    title = kwargs.pop('title', '')
+
     fs = kwargs.pop('figsize', (12,6))
     fc = kwargs.pop('facecolor', 'w')
-    fig, ax1 = plt.subplots(1,1, figsize=fs, facecolor=fc)
+
+    ax1 = kwargs.pop('ax', None)
+    return_figure = kwargs.pop('return_figure', True)
+    if ax1 is None:
+        fig, ax1 = plt.subplots(1,1, figsize=fs, facecolor=fc)
+    else:
+        return_figure = False
+
     lineObjects = ax1.plot(*args)
     if xlims:
         ax1.set_xlim(xlims)
     if ylims:
         ax1.set_ylim(ylims)
-
-
+    ymin, ymax = ax1.get_ylim()
+    if annotations:
+        for an in annotations:
+            try:
+                scale = an[2]
+            except IndexError:
+                scale = 0.95
+            ax1.annotate(an[0], xy=(an[1], ymax*scale))
+    if vlines:
+        for line in vlines:
+            ax1.axvline(line, ymin=0.98,c='k', ls='-', lw=1.)
 
     #Cosmetics
-    ax1.set_xlabel('Wavenumber [cm -1]')
+    ax1.set_xlabel('Wavenumber [cm$^{-1}$]')
+    ax1.set_ylabel('Flux [erg/cm$^2$/s/A]')
     #Angstroms x axis
     ax2=ax1.twiny()
     ax2.set_xlim(ax1.get_xlim())
@@ -94,8 +122,121 @@ def plot_spectra(*args, **kwargs):
 
     if label != '':
         if type(label) == str:
-            ax1.legend(iter(lineObjects), [label])
+            ax1.legend(iter(lineObjects), [label], loc=legendloc)
         else:
-            ax1.legend(iter(lineObjects), label)
+            ax1.legend(iter(lineObjects), label, loc=legendloc)
     ax1.grid()
-    plt.show()
+    ax1.set_title(title,position=(0.1,1.1))
+    if return_figure:
+        return fig
+
+class InteractivePlotter:
+    def __init__(self, axis, ordinate_cube, plot_axis, title=''):
+        self.axis = axis
+        self.ordinate_cube = ordinate_cube
+        self.plot_axis = plot_axis
+
+        self.patch = None
+        self.annotation = None
+        self.title = title
+
+    def connect(self, figure):
+        'connect to all the events we need'
+        self.figure = figure
+        self.cidpress = self.figure.canvas.mpl_connect(
+            'button_press_event', self.on_press)
+        self.cidmotion = self.figure.canvas.mpl_connect(
+            'motion_notify_event', self.on_motion)
+
+    def on_press(self, event):
+        'on button press we will see if the mouse is over us and store some data'
+        if event.inaxes is None: return
+        x, y = map(int, map(round, (event.xdata, event.ydata)))
+        self.plot_axis.clear()
+        self.plot_axis.get_figure().show()
+
+
+        self.plot_axis.plot(self.axis, self.ordinate_cube[x,y])
+        self.plot_axis.get_figure().show()
+
+    def on_motion(self, event):
+        if event.inaxes is None: return
+
+        x, y = map(int,map(round, (event.xdata, event.ydata)))
+
+        if self.patch is None:
+            ax = self.figure.axes[0]
+            self.patch = patches.Rectangle((x-0.5,y-0.5),1,1,fill=False, ec='w')
+            ax.add_patch(self.patch)
+            data = ax.images[0].get_array()
+            self.annotation = ax.annotate('V = %f km/s'%(data.T[x,y]) ,(0,1.1), xycoords='axes fraction' )
+        elif self.patch.xy == (x-0.5,y-0.5): return
+        else:
+            self.patch.remove()
+            self.patch = None
+            self.annotation.remove()
+
+
+        self.figure.canvas.draw()
+
+
+class SpectraPlotter:
+    def __init__(self, axis, original_cube, fit_cube, plot_axis, title):
+        self.axis = axis
+        self.original_cube = original_cube
+        self.fit_cube = fit_cube
+        self.residual = original_cube - fit_cube
+        self.plot_axis = plot_axis
+
+        self.patch = None
+        self.annotation = None
+        self.title = title
+    def connect(self, figure):
+        'connect to all the events we need'
+        self.figure = figure
+        self.cidpress = self.figure.canvas.mpl_connect(
+            'button_press_event', self.on_press)
+        self.cidmotion = self.figure.canvas.mpl_connect(
+            'motion_notify_event', self.on_motion)
+
+    def on_press(self, event):
+        'on button press we will see if the mouse is over us and store some data'
+        if event.inaxes is None: return
+        x, y = map(int, map(round, (event.xdata, event.ydata)))
+        self.plot_axis.clear()
+        self.plot_axis.get_figure().show()
+
+
+        plot_spectra(self.axis, self.original_cube[x,y,:],
+                         self.axis, self.fit_cube[x,y,:],
+                         self.axis, self.residual[x,y,:],
+                         label=['Original', 'Residual', 'Subtracted'],
+                         ax = self.plot_axis,
+                         xlims=(14750, 15350),
+                         legendloc = 'center left',
+                         title = self.title)
+        self.plot_axis.get_figure().show()
+
+    def on_motion(self, event):
+        if event.inaxes is None: return
+
+        x, y = map(int,map(round, (event.xdata, event.ydata)))
+
+        if self.patch is None:
+            ax = self.figure.axes[0]
+            self.patch = patches.Rectangle((x-0.5,y-0.5),1,1,fill=False, ec='w')
+            ax.add_patch(self.patch)
+            data = ax.images[0].get_array()
+            self.annotation = ax.annotate('V = %f km/s'%(data.T[x,y]) ,(0,1.1), xycoords='axes fraction' )
+        elif self.patch.xy == (x-0.5,y-0.5): return
+        else:
+            self.patch.remove()
+            self.patch = None
+            self.annotation.remove()
+
+
+        self.figure.canvas.draw()
+
+    def disconnect(self):
+        'disconnect all the stored connection ids'
+        self.figure.canvas.mpl_disconnect(self.cidpress)
