@@ -4,33 +4,35 @@ import numpy as np
 from scipy.interpolate import UnivariateSpline
 from scipy.optimize import curve_fit
 from orcs.utils import fit_lines_in_spectrum
-
+from orb.utils.spectrum import line_shift
 
 def sky_model_to_remove(spectrum, input_axis, skymodel, nb_pixels, xlims=[14700,15430]):
     """
     This function shifts the velocity of a skymodel to match at best the skylines in a spectrum.
     It returns the fitted vector, that shoukld be then subtracted from the original spectrum.
-    :param spectrum: The spectrum containing skylines
     :param input_axis: Axis on which is known the skymodel
+    :param spectrum: The spectrum containing skylines
     :param skymodel: Sky spectrum to be fitted_models
     :param nb_pixels: Number of pixels on which the original spectrum is integrated. Used to scale the skymodel
     :return fit_vector: the shifted skymodel, to be removed
     """
+    c = 299792.458
+    input_axis = np.log10(input_axis) #This way, a velocity shift correspond to a constant
+                                      #wavenumber offset over the whole axis
+
     sky_interpolator = UnivariateSpline(input_axis, skymodel, s=0)
     fit_vector = np.zeros_like(spectrum)
 
-    imin, imax = np.searchsorted(input_axis, xlims)
+    imin, imax = np.searchsorted(input_axis, np.log10(xlims))
     a = input_axis[imin:imax]
     s = spectrum[imin:imax]/nb_pixels
     scale = np.nanmax(s) - np.nanmedian(s)
     def model(x, h, v):
-        shift = line_shift(v, 15000)
+        shift = -np.log10(1-v/c) # minus sign because it's in wavenumber
         sky_shifted = sky_interpolator(a.astype(float)+shift)
         return h + UnivariateSpline(a, sky_shifted, s=0)(x)
-
     popt, pcov = curve_fit(model, a, s, p0=[scale,-75.])
     fit_vector[imin:imax] = model(a, *popt)-popt[0]
-
     return fit_vector
 
 def parse_line_params(rest_lines, fit, error = True, wavenumber = True):
