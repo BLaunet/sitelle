@@ -111,8 +111,12 @@ def fill_contour(mask, contour):
     :param contour: dict of 4 1D regions : top, bottom, left, right
     :return mask: the mask filled inside the contour
     """
-    X_range = contour['top'][0]
-    Y_range = contour['right'][1]
+    top_x = contour['top'][0]
+    bottom_x = contour['top'][0]
+    right_y = contour['right'][1]
+    left_y = contour['left'][1]
+    X_range = top_x if len(top_x) >= len(bottom_x) else bottom_x
+    Y_range = right_y if len(right_y) >= len(left_y) else left_y
     for i,x in enumerate(X_range):
         for j, y in enumerate(Y_range):
             if x >= contour['left'][0][j] and x <= contour['right'][0][j]:
@@ -132,7 +136,11 @@ def smooth_contour(contour):
             O, A = contour[k]
         else:
             A, O = contour[k]
-        smoother = UnivariateSpline(A[np.argsort(A)],O[np.argsort(A)], s=0)
+        #Make sure that abscisse is unique and sorted
+        A, unique_id = np.unique(A, return_index=True)
+        O = O[unique_id]
+        argsort_A = np.argsort(A)
+        smoother = UnivariateSpline(A[argsort_A],O[argsort_A], s=0)
         new_A = np.arange(A.min(), A.max()+1)
         new_O = np.apply_along_axis(lambda x: map(int, map(round, x)), 0, smoother(new_A))
 

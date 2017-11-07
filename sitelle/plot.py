@@ -54,7 +54,7 @@ def plot_map(map, region=None, projection=None,
         fig.colorbar(im)
     if projection:
         plt.grid()
-    return fig
+    return fig, ax
 
 
 def plot_spectra(*args, **kwargs):
@@ -157,6 +157,7 @@ class InteractivePlotter:
 
 
         self.plot_axis.plot(self.axis, self.ordinate_cube[x,y])
+        self.plot_axis.set_title(self.title)
         self.plot_axis.get_figure().show()
 
     def on_motion(self, event):
@@ -181,11 +182,11 @@ class InteractivePlotter:
 
 
 class SpectraPlotter:
-    def __init__(self, axis, original_cube, fit_cube, plot_axis, projection=None, **kwargs):
+    def __init__(self, axis, original_cube, fit_cube, plot_axis, projection=None, residual = True, **kwargs):
         self.axis = axis
         self.original_cube = original_cube
         self.fit_cube = fit_cube
-        self.residual = original_cube - fit_cube
+        self.residual = residual
         self.plot_axis = plot_axis
         self.projection = projection
         self.kwargs = kwargs
@@ -208,12 +209,10 @@ class SpectraPlotter:
         self.plot_axis.clear()
         self.plot_axis.get_figure().show()
 
-
-        plot_spectra(self.axis, self.original_cube[x,y,:],
-                         self.axis, self.fit_cube[x,y,:],
-                         self.axis, self.residual[x,y,:],
-                         ax = self.plot_axis,
-                         **self.kwargs)
+        args = (self.axis, self.original_cube[x,y,:],self.axis, self.fit_cube[x,y,:])
+        if self.residual:
+            args += (self.axis, self.original_cube[x,y,:]-self.fit_cube[x,y,:])
+        plot_spectra(*args, ax = self.plot_axis, **self.kwargs)
         self.plot_axis.get_figure().show()
 
     def on_motion(self, event):
