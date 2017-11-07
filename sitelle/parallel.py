@@ -6,6 +6,10 @@ def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
     """
     Like numpy.apply_along_axis(), but takes advantage of multiple
     cores.
+    -------------
+    Additional keywords :
+    :param modules: modules to be imported so that the function works correctly. Example : 'import numpy as np'
+    :param depfuncs: functions used by the main function but defined outside of its body
     """
     job_server, ncpus = init_pp_server(multiprocessing.cpu_count(),silent=False)
 
@@ -31,15 +35,3 @@ def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
     close_pp_server(job_server)
 
     return np.concatenate(job_output)
-
-def _unpacking_apply_along_axis((func1d, axis, arr, args, kwargs)):
-    """
-    Like numpy.apply_along_axis(), but and with arguments in a tuple
-    instead.
-
-    This function is useful with multiprocessing.Pool().map(): (1)
-    map() only handles functions that take a single argument, and (2)
-    this function can generally be imported from a module, as required
-    by map().
-    """
-    return np.apply_along_axis(func1d, axis, arr, *args, **kwargs)
