@@ -2,6 +2,37 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patches as patches
 
+def customize_axes(axes, **kwargs):
+    for k,v in kwargs.items():
+        try:
+            getattr(axes, 'set_%s'%k)(v)
+        except AttributeError:
+            raise AttributeError(str(type(axes))+' has no method set_%s'%k)
+
+def make_wavenumber_axes(ax, **kwargs):
+    customize_axes(ax, **kwargs)
+    _make_spectral_axes(ax, False)
+def make_wavelength_axes(ax, **kwargs):
+    customize_axes(ax, **kwargs)
+    _make_spectral_axes(ax, True)
+def _make_spectral_axes(ax, wavelength):
+    wl_label = 'Wavelength [Angstroms]'
+    wn_label = "Wavenumber [cm$^{-1}$]"
+    if wavelength:
+        bottom_label = wl_label
+        top_label = wn_label
+    else:
+        bottom_label = wn_label
+        top_label = wl_label
+    customize_axes(ax, xlabel= bottom_label,
+                       ylabel='Flux [erg/cm$^2$/s/A]')
+    #Angstroms x axis
+    ax2=ax.twiny()
+    customize_axes(ax2, xlim=ax.get_xlim(),
+                        xticks = ax.get_xticks()[1:-1],
+                        xticklabels = ["%.f" % (1e8/wn) for wn in ax.get_xticks()[1:-1]],
+                        xlabel = top_label)
+
 ## Plot a 2D map
 def plot_map(map, region=None, projection=None,
                 colorbar=False, figsize=(7,7), facecolor='w', title='',
@@ -130,16 +161,17 @@ def plot_spectra(*args, **kwargs):
     if return_figure:
         return fig
 
-class InteractivePlotter:
-    def __init__(self, axis, ordinate_cube, plot_axis, title=''):
-        self.axis = axis
-        self.ordinate_cube = ordinate_cube
-        self.plot_axis = plot_axis
+class Interactive1DPlotter:
+    def __init__(self, axes, cube_axis, cube, *args, **kwargs):
+        self.axes = axes
+        self.cube_axis = cube_axis
+        self.cube = cube
+        self.args = args
+        self.kwargs = kwargs
 
         self.patch = None
         self.annotation = None
-        self.title = title
-
+        self.artist = []
     def connect(self, figure):
         'connect to all the events we need'
         self.figure = figure
@@ -152,13 +184,18 @@ class InteractivePlotter:
         'on button press we will see if the mouse is over us and store some data'
         if event.inaxes is None: return
         x, y = map(int, map(round, (event.xdata, event.ydata)))
-        self.plot_axis.clear()
-        self.plot_axis.get_figure().show()
-
-
-        self.plot_axis.plot(self.axis, self.ordinate_cube[x,y])
-        self.plot_axis.set_title(self.title)
-        self.plot_axis.get_figure().show()
+        if self.artist is not []:
+            for a in self.artist:
+                a.remove()
+        self.axes.get_figure().show()
+        self.artist = self.axes.plot(self.cube_axis, self.cube[x,y,...], *self.args, **self.kwargs)
+        # for ax in self.figure.get_axes():
+        #     ax.relim()
+        #     ax.autoscale_view()
+        self.axes.relim()
+        self.axes.autoscale_view()
+        self.axes.legend()
+        self.axes.get_figure().show()
 
     def on_motion(self, event):
         if event.inaxes is None: return
