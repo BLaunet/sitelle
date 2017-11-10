@@ -5,35 +5,37 @@ from scipy.interpolate import UnivariateSpline
 from scipy.optimize import curve_fit
 from orcs.utils import fit_lines_in_spectrum
 from orb.utils.spectrum import line_shift
+import gvar
 
-def sky_model_to_remove(spectrum, input_axis, skymodel, nb_pixels, xlims=[14700,15430]):
+def sky_model_to_remove(mean_spectrum, axis, sky_axis, sky_model):
     """
     This function shifts the velocity of a skymodel to match at best the skylines in a spectrum.
     It returns the fitted vector, that shoukld be then subtracted from the original spectrum.
-    :param input_axis: Axis on which is known the skymodel
-    :param spectrum: The spectrum containing skylines
-    :param skymodel: Sky spectrum to be fitted_models
-    :param nb_pixels: Number of pixels on which the original spectrum is integrated. Used to scale the skymodel
+    :param mean_spectrum: The spectrum containing skylines. If it comes from an
+                            integrated region, pay attention to give the **mean** spectrum,
+                            i.e divided by the number of integrated pixels
+    :param axis: Axis of the spectrum
+    :param sky_axis: axis on which the skymodel is known
+    :param skymodel: Sky spectrum to be fitted
     :return fit_vector: the shifted skymodel, to be removed
     """
     c = 299792.458
-    input_axis = np.log10(input_axis) #This way, a velocity shift correspond to a constant
+    axis = np.log10(axis) #This way, a velocity shift correspond to a constant
                                       #wavenumber offset over the whole axis
+    sky_axis = np.log10(sky_axis)
 
-    sky_interpolator = UnivariateSpline(input_axis, skymodel, s=0)
-    fit_vector = np.zeros_like(spectrum)
+    sky_interpolator = UnivariateSpline(sky_axis, sky_model, s=0)
+    fit_vector = np.zeros_like(mean_spectrum)
+    scale = np.nanmax(mean_spectrum) - np.nanmedian(mean_spectrum)
 
-    imin, imax = np.searchsorted(input_axis, np.log10(xlims))
-    a = input_axis[imin:imax]
-    s = spectrum[imin:imax]/nb_pixels
-    scale = np.nanmax(s) - np.nanmedian(s)
     def model(x, h, v):
         shift = -np.log10(1-v/c) # minus sign because it's in wavenumber
-        sky_shifted = sky_interpolator(a.astype(float)+shift)
-        return h + UnivariateSpline(a, sky_shifted, s=0)(x)
-    popt, pcov = curve_fit(model, a, s, p0=[scale,-75.])
-    fit_vector[imin:imax] = model(a, *popt)-popt[0]
+        sky_shifted = sky_interpolator(axis.astype(float)+shift)
+        return h + UnivariateSpline(axis, sky_shifted, s=0)(x)
+    popt, pcov = curve_fit(model, axis, mean_spectrum, p0=[scale,-75.])
+    fit_vector = model(axis, *popt)-popt[0]
     return fit_vector
+
 
 def parse_line_params(rest_lines, fit, error = True, wavenumber = True):
     """
@@ -107,7 +109,28 @@ def chi2_func(axis, spectrum, fit_params, delta=8):
     residual = (spectrum-fit_params['fitted_vector'])[to_keep]
     return np.sum(np.square(residual/sigma))
 
-def fit_gas_lines(z_dim, inputparams, params, lines, V_range, snr_guess = None):
+def remove_OH_line(spectrum, theta, cube, **kwargs):
+    lines = ['Halpha']
+
+    if 'fmodel' not in kwargs:
+        kwargs['fmodel'] = 'sinc'
+    if 'pos_def' not in kwargs:
+        kwargs['pos_def'] = '1'
+    # if 'sigma_cov' not in kwargs:
+    #     kwargs['sigma_cov'] = [gvar.gvar(30, 10)]
+    # if 'sigma_def' not in kwargs:
+    #     kwargs['sigma_def'] = ['1']
+
+    cube._prepare_input_params(lines, **kwargs)
+    inputparams = cube.inputparams.convert()
+    params = cube.params.convert()
+    V_range  = [gvar.gvar(-400, 2)]
+    snr_guess = 1
+
+    fit = fit_gas_lines([spectrum, theta], inputparams, params, lines, V_range, snr_guess, silent=True)
+    return spectrum - fit['line_spectra']
+
+def fit_gas_lines(z_dim, inputparams, params, lines, V_range, snr_guess = None, silent=False):
     """
     This function fit lines in a given spectrum.
     :param z_dim: 2D-array. z_dim[0] contains the spectrum to fit, z_dim[1] contains theta, the incident angle at which the spectrum was recorded
@@ -134,7 +157,8 @@ def fit_gas_lines(z_dim, inputparams, params, lines, V_range, snr_guess = None):
             chi2_list.append(hChi2)
             spectra_list.append(np.sum(fit['fitted_models']['Cm1LinesModel'], 0))
             params_list.append(parse_line_params(lines,fit))
-            print 'Init V = ', v, 'Fitted V = ', fit['velocity'][0], 'Chi2 = ', hChi2
+            if not silent:
+                print 'Init V = ', v, 'Fitted V = ', fit['velocity'][0], 'Chi2 = ', hChi2
     if chi2_list != list():
         imin = np.argmin(chi2_list)
         chi2 = chi2_list[imin]#{'chi2': chi2_list, 'v': V_range[imin]}
