@@ -1,6 +1,27 @@
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 
+def estimate_noise(full_axis, full_spectrum, filter_lims, side='both'):
+    '''
+    Estimates the noise in an integrated spectra from sitelle, by measuring it outside of the filter range.
+    :param full_axis: full wavenumber axis of the cube
+    :param full_spectrum: spectrum on this full axis
+    :param filter_lims: limits of the filter range (in wavenumber)
+    :param side: (optional) if 'right' ('left'), only the right (left) side of the filter is considered. Default to 'both'
+    :return: the standard deviaition of the noise outside the filter range
+    '''
+    imin,imax = np.searchsorted(full_axis,filter_lims)
+    if side is 'right':
+        noise = full_spectrum[imax+40:]
+    elif side is 'left':
+        noise = full_spectrum[:imin-40]
+    elif side is 'both':
+        noise = np.concatenate((full_spectrum[:imin-40], full_spectrum[imax+40:]))
+    else:
+        raise ValueError(side)
+    return np.std(noise)
+
+
 def gen_wavelength_header(h, axis):
     h['NAXIS3'] = len(axis)
     h['CRPIX3'] = 1
@@ -28,6 +49,28 @@ def rebin(map, binsize, type):
         else:
             rebinned[x, y, ...] = np.nanmean(data, (0,1))
     return rebinned
+
+def regular_wl_axis(axis, xlims=None):
+    """
+    Converts a wavenumber axis ([cm-1]) into a regular (==equally spaced) wavelength axis ([Angstroms])
+    :param axis: the input axis in cm-1
+    :param xlims: optional : limits in cm-1 to reduce the range of the axis (typically : filter range)
+    :return reg_axis: a regular axis in Angstroms
+    """
+    irreg_axis = 1e8/axis
+    reg_axis = np.linspace(irreg_axis[0], irreg_axis[-1], axis.shape[0] )
+    #We flip it to make it wavelength ascending
+    reg_axis = np.flip(reg_axis, 0)
+
+    if xlims:
+        #We get extremas of the filter bandpass
+        wl_min, wl_max = list(reversed([1e8/x for x in xlims]))
+        #We conserve only spectrum inside this bandpass
+        i_min = np.searchsorted(reg_axis, wl_min)
+        i_max = np.searchsorted(reg_axis, wl_max)
+        reg_axis = reg_axis[i_min:i_max]
+    return reg_axis
+
 def wavelength_regrid(cube, rebinned, only_bandpass, type, header=None):
     ## CREATION OF THE NEW AXIS
     base_axis = cube.params.base_axis.astype(float)
