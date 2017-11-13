@@ -179,6 +179,10 @@ class NburstFitter():
             self.fit_params['xsize'] = False
 
         self.fit_params.update(kwargs)
+        if 'lmin' not in self.fit_params:
+            self.fit_params['lmin'] = False
+        if 'lmax' not in self.fit_params:
+            self.fit_params['lmax'] = False
 
         if ('vorbin' in self.fit_params and self.fit_params['vorbin'] is True) or ('SN' in self.fit_params and self.fit_params['SN'] is True):
             if ('vorbin' in self.fit_params and 'SN' not in self.fit_params) or ('SN' in self.fit_params and 'vorbin' not in self.fit_params):
