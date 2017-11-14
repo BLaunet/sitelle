@@ -203,6 +203,12 @@ class NburstFitter():
             template = temp.readlines()
         for i,line in enumerate(template):
             for k,v in fit_params.items():
+                if k == 'silent' and v == True:
+                    if '/plot' in line:
+                        template[i] = '\n'
+                    if 'window' in line:
+                        template[i] = '\n'
+
                 if line.startswith(k):
                     template[i] = self._assign(k,v)
                     j = i

@@ -35,3 +35,27 @@ def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
     close_pp_server(job_server)
 
     return np.concatenate(job_output)
+
+def parallel_loop(func, iterator, **kwargs):
+    job_server, ncpus = init_pp_server(multiprocessing.cpu_count(),silent=False)
+    chunks = [l[i:i + n] for i in xrange(0, len(l), n)]
+    return chunks
+    # def helper(func1d, axis, arr, args, kwargs):
+    #     return np.apply_along_axis(func1d, axis, arr, *args, **kwargs)
+    #
+    # modules = kwargs.pop('modules', tuple())
+    # modules += ('import numpy as np',)
+    #
+    # depfuncs = kwargs.pop('depfuncs', tuple())
+    # depfuncs += (func1d,)
+    # jobs = [job_server.submit(
+    #             helper,
+    #             args=(c),
+    #             modules=(modules),
+    #             depfuncs=(depfuncs))
+    #             for c in chunks]
+    #
+    # job_output = [job() for job in jobs]
+    # close_pp_server(job_server)
+    #
+    # return np.concatenate(job_output)
