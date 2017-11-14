@@ -92,6 +92,8 @@ class NburstFitter():
         self.filedir = filedir
         self.prefix = prefix
         self.template_path = '../nburst/template.pro'
+        self.idl_result = None
+        self.fitted_spectra = None
 
     @classmethod
     def from_sitelle_data(cls, axis, spectra, error, fwhm, ORCS_cube):
@@ -146,17 +148,30 @@ class NburstFitter():
         return q
 
     def _save_input(self, filedir, prefix):
+        if filedir is None:
+            if self.filedir is None:
+                raise ValueError('You have to provide a valid directory for the data')
+            else:
+                filedir = self.filedir
+        if prefix is None:
+            if self.prefix is None:
+                raise ValueError('You have to provide a valid prefix for the data')
+            else:
+                prefix = self.prefix
 
         if filedir[-1] != '/':
             filedir+='/'
         self.filedir = filedir
         self.prefix = prefix
-
+        try:
+            os.makedirs(self.filedir)
+        except OSError:
+            pass
         io.write_fits(self.filedir+self.prefix+'_data.fits', self.spectra, self.header, overwrite=True)
         io.write_fits(self.filedir+self.prefix+'_fwhm.fits', self.fwhm, self.header, overwrite=True)
         io.write_fits(self.filedir+self.prefix+'_error.fits', self.error, self.header, overwrite=True)
 
-    def configure_fit(self, filedir, prefix, **kwargs):
+    def configure_fit(self, filedir=None, prefix=None, **kwargs):
         self._save_input(filedir, prefix)
 
         self.fit_params['galfile'] = self.filedir+self.prefix+ '_data.fits'
@@ -205,7 +220,7 @@ class NburstFitter():
             for k,v in fit_params.items():
                 if k == 'silent' and v == True:
                     if '/plot' in line:
-                        template[i] = '\n'
+                        template[i].replace('/plot', 'plot = 0')
                     if 'window' in line:
                         template[i] = '\n'
 
@@ -243,22 +258,30 @@ class NburstFitter():
             sys.stdout.flush()
         retval = p.wait()
 
-        self._read(self.filedir+self.prefix+'_fitted.fits')
+        self.read_result(self.filedir+self.prefix+'_fitted.fits')
 
-    def _read(self, filename=None):
+    def read_result(self, filename=None):
         if filename is None:
             filename = self.filedir+self.prefix+'_fitted.fits'
         hdu = fits.open(filename)
         self.bin_table = hdu[1].data[0][0].astype(int).reshape(self.fwhm.shape[1:])
-        self.fit_table = hdu[2].data
-        return self.bin_table, self.fit_table
+        self.idl_result = hdu[2].data
 
     def extract_spectrum(self, binNumber):
-        axis = self.fit_table['WAVE'][binNumber,:]
-        fit = self.fit_table['FIT'][binNumber,:]
+        axis = self.idl_result['WAVE'][binNumber,:]
+        fit = self.idl_result['FIT'][binNumber,:]
         return axis,fit
     def get_fitted_spectra(self):
-        return self.fit_table['FIT'][self.bin_table].T
+        if self.fitted_spectra is None:
+            if self.idl_result is None:
+                self.read_result()
+            specs = self.idl_result['FIT'][self.bin_table].T
+            idl_axis = self.idl_result['WAVE'][0]
+            def interpolate(spec, old_axis, new_axis):
+                return UnivariateSpline(old_axis, spec, s=0, ext='zeros')(new_axis)
+            self.fitted_spectra = np.apply_along_axis(interpolate, 0, specs, idl_axis, self.axis)
+        return self.fitted_spectra
+
 
     # def extract_spectrum(self, binNumber, wn_axis):
     #     wl_axis, fit = self.extract_wl_spectrum(binNumber)
