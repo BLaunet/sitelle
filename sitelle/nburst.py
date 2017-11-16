@@ -7,6 +7,7 @@ import subprocess
 import os
 import copy
 import sys
+from path import Path
 
 def parameter_map(table, param, binMap):
     """
@@ -75,7 +76,7 @@ def sew_spectra(left, right):
     return NburstFitter(axis, spectra, error, fwhm, left.header)
 
 class NburstFitter():
-    def __init__(self, axis, spectra, error, fwhm, header, filedir=None, prefix=None):
+    def __init__(self, axis, spectra, error, fwhm, header, filedir, prefix):
         """
         all in wavenumber (== sortie de orcs)
         error et fwhm = meme dim spatiale que cube
@@ -83,20 +84,31 @@ class NburstFitter():
         cube [x,y,z] ou cube[x,z] ou cube[z]
         """
         self.axis = axis
-        self.spectra = spectra
-        self.error = error
-        self.fwhm = fwhm
+        if len(spectra.shape) == 1:
+            self.spectra = spectra.reshape(1, spectra.shape[0])
+        else:
+            self.spectra = spectra
+        self.error = self._check_shape(self.spectra, error)
+        self.fwhm = self._check_shape(self.spectra,fwhm)
         self.header = header
 
         self.fit_params={}
-        self.filedir = filedir
+        self.filedir = Path(filedir).abspath()
         self.prefix = prefix
-        self.template_path = '../nburst/template.pro'
         self.idl_result = None
         self.fitted_spectra = None
+        self.fit_name = None
+
+        self._save_input()
+        ## Environment variables
+        self.nburst_working_dir = Path('/Users/blaunet/Documents/M31/nburst/')
+        self.idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64:"
+        self.idl_startup_script = "~/.idl/start.pro"
+        self.template_path = self.nburst_working_dir / 'template.pro'
+
 
     @classmethod
-    def from_sitelle_data(cls, axis, spectra, error, fwhm, ORCS_cube):
+    def from_sitelle_data(cls, axis, spectra, error, fwhm, ORCS_cube, filedir, prefix):
         if len(spectra.shape) == 1:
             original_spectra = spectra.reshape(1, spectra.shape[0])
         else:
@@ -126,7 +138,7 @@ class NburstFitter():
         wl_header = gen_wavelength_header(ORCS_cube.get_header(), wl_axis)
         nburst_header = swap_header_axis(wl_header, 1,3)
 
-        nburst_fitter =  cls(wl_axis, wl_spectra, err_cube, fwhm_cube, nburst_header)
+        nburst_fitter =  cls(wl_axis, wl_spectra, err_cube, fwhm_cube, nburst_header, filedir, prefix)
         nburst_fitter.fit_params['lmin'] = 4825.0 if ORCS_cube.params.filter_name == 'SN2' else 6480.
         nburst_fitter.fit_params['lmax'] = 5132.0 if ORCS_cube.params.filter_name == 'SN2' else 6800.
         return nburst_fitter
@@ -139,15 +151,22 @@ class NburstFitter():
         axis = read_wavelength_axis(header, 1)
         return cls(axis, spectra, errors, fwhms, header, filedir, prefix)
 
+    @classmethod
+    def from_single_spectra(cls, axis, spectra, error, fwhm, header, filedir, prefix):
+        spectra = spectra.reshape(spectra.shape[0], 1)
+        error = error.reshape(error.shape[0], 1)
+        fwhm = fwhm.reshape(fwhm.shape[0], 1)
+        return cls(axis, spectra, error, fwhm, header, filedir, prefix)
+
     @staticmethod
     def _check_shape(spectra,q):
         if type(q) is not np.ndarray:
             q = np.array([q])
-        if spectra.shape[:-1] != q.shape:
+        if spectra.shape[:-1] != q.shape[:-1]:
             raise ValueError("shape %s doesn't match spectra shape %s : "%(q.shape, spectra.shape))
         return q
 
-    def _save_input(self, filedir, prefix):
+    def _save_input(self, filedir=None, prefix=None):
         if filedir is None:
             if self.filedir is None:
                 raise ValueError('You have to provide a valid directory for the data')
@@ -159,25 +178,22 @@ class NburstFitter():
             else:
                 prefix = self.prefix
 
-        if filedir[-1] != '/':
-            filedir+='/'
-        self.filedir = filedir
+        self.filedir = Path(filedir).abspath()
         self.prefix = prefix
-        try:
-            os.makedirs(self.filedir)
-        except OSError:
-            pass
-        io.write_fits(self.filedir+self.prefix+'_data.fits', self.spectra, self.header, overwrite=True)
-        io.write_fits(self.filedir+self.prefix+'_fwhm.fits', self.fwhm, self.header, overwrite=True)
-        io.write_fits(self.filedir+self.prefix+'_error.fits', self.error, self.header, overwrite=True)
 
-    def configure_fit(self, filedir=None, prefix=None, **kwargs):
-        self._save_input(filedir, prefix)
+        self.filedir.makedirs_p()
 
-        self.fit_params['galfile'] = self.filedir+self.prefix+ '_data.fits'
-        self.fit_params['errfile'] = self.filedir+self.prefix+ '_error.fits'
-        self.fit_params['fwhmfile'] = self.filedir+self.prefix+ '_fwhm.fits'
-        self.fit_params['result_file'] = self.filedir+self.prefix+ '_fitted.fits'
+        io.write_fits(self.filedir / self.prefix+'_data.fits', self.spectra, self.header, overwrite=True)
+        io.write_fits(self.filedir / self.prefix+'_fwhm.fits', self.fwhm, self.header, overwrite=True)
+        io.write_fits(self.filedir / self.prefix+'_error.fits', self.error, self.header, overwrite=True)
+
+    def configure_fit(self, fit_name, **kwargs):
+        self.fit_name = fit_name
+
+        self.fit_params['galfile'] = str(self.filedir / self.prefix+ '_data.fits')
+        self.fit_params['errfile'] = str(self.filedir / self.prefix+ '_error.fits')
+        self.fit_params['fwhmfile'] = str(self.filedir / self.prefix+ '_fwhm.fits')
+        self.fit_params['result_file'] = str(self.filedir / self.prefix+'_'+self.fit_name+'_fitted.fits')
         try:
             nz, ny, nx = self.spectra.shape
             self.fit_params['nx'] = nx
@@ -212,57 +228,57 @@ class NburstFitter():
             if self.fit_params['exclreg'] == 'default':
                 self.fit_params.pop('exclreg')
 
+        if 'silent' in self.fit_params and self.fit_params['silent'] is True:
+            self.fit_params.pop('silent')
+            self.fit_params['plot'] = 0
+            self.fit_params['window'] = False
+
+
         fit_params = copy.deepcopy(self.fit_params)
+
+        def _assign(key, value):
+            if type(value) == bool and value == False:
+                return '\n'
+            if type(value) == bool and value == True:
+                value = 1
+            if type(value) == str:
+                value = "'"+value+"'"
+            return '%s = %s\n'%(key,value)
 
         with open(self.template_path, 'r') as temp:
             template = temp.readlines()
         for i,line in enumerate(template):
             for k,v in fit_params.items():
-                if k == 'silent' and v == True:
-                    if '/plot' in line:
-                        template[i].replace('/plot', 'plot = 0')
-                    if 'window' in line:
-                        template[i] = '\n'
-
                 if line.startswith(k):
-                    template[i] = self._assign(k,v)
+                    template[i] = _assign(k,v)
                     j = i
                     while '$' in line:
                         j += 1
                         line = template[j]
-                        template[j] = self._assign(k,False)
+                        template[j] = _assign(k,False)
 
                     fit_params.pop(k)
 
-        with open(self.filedir+self.prefix+'_procedure.pro', 'w') as out:
+        with open(self.filedir / self.prefix+'_'+self.fit_name+'.pro', 'w') as out:
             out.writelines(template)
-
-    def _assign(self, key, value):
-        if type(value) == bool and value == False:
-            return '\n'
-        if type(value) == bool and value == True:
-            value = 1
-        if type(value) == str:
-            value = "'"+value+"'"
-        return '%s = %s\n'%(key,value)
 
     def run_fit(self):
         env = os.environ
-        env['PATH'] = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64:" + env['PATH']
-        env['IDL_STARTUP'] = "~/.idl/start.pro"
+        env['PATH'] = self.idl_binary_path + env['PATH']
+        env['IDL_STARTUP'] = self.idl_startup_script
 
-        script_path = self.filedir+self.prefix+'_procedure.pro'
+        script_path = self.filedir / self.prefix+'_'+self.fit_name+'.pro'
         p = subprocess.Popen('idl %s'%script_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
         for line in p.stdout.readlines():
             print line,
             sys.stdout.flush()
         retval = p.wait()
 
-        self.read_result(self.filedir+self.prefix+'_fitted.fits')
+        self.read_result(self.filedir / self.prefix+'_'+self.fit_name+'_fitted.fits')
 
     def read_result(self, filename=None):
         if filename is None:
-            filename = self.filedir+self.prefix+'_fitted.fits'
+            filename = self.filedir / self.prefix+'_'+self.fit_name+'_fitted.fits'
         hdu = fits.open(filename)
         self.bin_table = hdu[1].data[0][0].astype(int).reshape(self.fwhm.shape[1:])
         self.idl_result = hdu[2].data
