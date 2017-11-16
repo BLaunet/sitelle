@@ -8,6 +8,10 @@ import os
 import copy
 import sys
 from path import Path
+import socket
+
+if 'johannes' in socket.gethostname() or 'tycho' in socket.gethostname():
+    NburstFitter.set_env('tycho')
 
 def parameter_map(table, param, binMap):
     """
@@ -76,6 +80,8 @@ def sew_spectra(left, right):
     return NburstFitter(axis, spectra, error, fwhm, left.header)
 
 class NburstFitter():
+    nburst_working_dir = Path('/Users/blaunet/Documents/M31/nburst/')
+    idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64:"
     def __init__(self, axis, spectra, error, fwhm, header, filedir, prefix):
         """
         all in wavenumber (== sortie de orcs)
@@ -101,11 +107,16 @@ class NburstFitter():
 
         self._save_input()
         ## Environment variables
-        self.nburst_working_dir = Path('/Users/blaunet/Documents/M31/nburst/')
-        self.idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64:"
+
         self.idl_startup_script = "~/.idl/start.pro"
         self.template_path = self.nburst_working_dir / 'template.pro'
-
+    @classmethod
+    def set_env(cls, machine):
+        if machine == 'tycho':
+            cls.nburst_working_dir = Path('~/nburst/')
+            cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
+        else:
+            pass
 
     @classmethod
     def from_sitelle_data(cls, axis, spectra, error, fwhm, ORCS_cube, filedir, prefix):
