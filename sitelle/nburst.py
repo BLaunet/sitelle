@@ -111,7 +111,7 @@ class NburstFitter():
     @classmethod
     def set_env(cls, machine):
         if machine == 'tycho':
-            cls.nburst_working_dir = Path('~/nburst/')
+            cls.nburst_working_dir = Path('/obs/blaunet/nburst/')
             cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
         else:
             pass
