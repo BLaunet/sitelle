@@ -10,6 +10,11 @@ import sys
 from path import Path
 import socket
 
+<<<<<<< HEAD
+=======
+if 'johannes' in socket.gethostname() or 'tycho' in socket.gethostname():
+    NburstFitter.set_env('tycho')
+>>>>>>> db19c795f14ee1710c3612710554f1e8b7713d34
 
 def parameter_map(table, param, binMap):
     """
