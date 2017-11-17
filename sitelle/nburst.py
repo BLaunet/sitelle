@@ -102,7 +102,7 @@ class NburstFitter():
             pass
 
     @classmethod
-    def from_sitelle_data(cls, axis, spectra, error, fwhm, ORCS_cube, filedir, prefix):
+    def from_sitelle_data(cls, axis, spectra, error, fwhm, ORCS_cube, filedir, prefix, force = False):
         """
         This function converts sitelle data to be fitted by Nburst.
         It interpolates a spectra onto a regular wavelength grid, and creates error and fwhm spectra as well.
@@ -152,11 +152,10 @@ class NburstFitter():
             wl_spectra[xy] = UnivariateSpline(axis.astype(float),original_spectra[xy],s=0)(1e8/wl_axis)
 
         #Header
-        wl_header = gen_wavelength_header(ORCS_cube.get_header(), wl_axis, 3)
-
-        nburst_fitter =  cls(wl_axis, wl_spectra, err_cube, fwhm_cube, wl_header, filedir, prefix)
+        wl_header = gen_wavelength_header(ORCS_cube.get_header(), wl_axis, len(original_spectra.shape))
+        nburst_fitter =  cls(wl_axis, wl_spectra, err_cube, fwhm_cube, wl_header, filedir, prefix, force=force)
         nburst_fitter.fit_params['lmin'] = 4825.0 if ORCS_cube.params.filter_name == 'SN2' else 6480.
-        nburst_fitter.fit_params['lmax'] = 5132.0 if ORCS_cube.params.filter_name == 'SN2' else 6800.
+        nburst_fitter.fit_params['lmax'] = 5132.0 if ORCS_cube.params.filter_name == 'SN2' else 6842.
         return nburst_fitter
 
     @classmethod
@@ -242,7 +241,7 @@ class NburstFitter():
 
         self.filedir.makedirs_p()
 
-        swaped_header = swap_header_axis(self.header, 1, len(self.spectra.shape))
+        swaped_header = swap_header_axis(copy.deepcopy(self.header), 1, len(self.spectra.shape))
 
         io.write_fits(self.filedir / self.prefix+'_data.fits', self.spectra.T, swaped_header, overwrite=True)
         io.write_fits(self.filedir / self.prefix+'_fwhm.fits', self.fwhm.T, swaped_header, overwrite=True)
@@ -381,9 +380,9 @@ class NburstFitterList():
     def __init__(self, fitters):
         self.fitters = fitters
         self.axis = self.fitters[0].axis
-        self.spectra = np.concatenate([fitter.spectra for fitter in self.fitters], axis=1)
-        self.error = np.concatenate([fitter.error for fitter in self.fitters], axis=1)
-        self.fwhm = np.concatenate([fitter.fwhm for fitter in self.fitters], axis=1)
+        self.spectra = np.concatenate([fitter.spectra for fitter in self.fitters], axis=0)
+        self.error = np.concatenate([fitter.error for fitter in self.fitters], axis=0)
+        self.fwhm = np.concatenate([fitter.fwhm for fitter in self.fitters], axis=0)
 
         self.fitted_spectra = None
     def configure_fit(self, **kwargs):
@@ -413,7 +412,7 @@ class NburstFitterList():
         for col in self.fitters[0].idl_result.columns:
             if col.name == 'CHI2' or 'D' in col.format:
                 self.idl_result[col.name] = np.concatenate([fitter.idl_result[col.name] for fitter in self.fitters], axis=0)
-        self.fitted_spectra = np.concatenate([fitter.fitted_spectra for fitter in self.fitters], axis=1)
+        self.fitted_spectra = np.concatenate([fitter.fitted_spectra for fitter in self.fitters], axis=0)
 
 
 if 'johannes' in socket.gethostname() or 'tycho' in socket.gethostname():
