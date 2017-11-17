@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patches as patches
+from orb.fit import Lines
+
 
 def customize_axes(axes, **kwargs):
     for k,v in kwargs.items():
@@ -8,13 +10,13 @@ def customize_axes(axes, **kwargs):
             getattr(axes, 'set_%s'%k)(v)
         except AttributeError:
             raise AttributeError(str(type(axes))+' has no method set_%s'%k)
-
 def make_wavenumber_axes(ax, **kwargs):
     customize_axes(ax, **kwargs)
     _make_spectral_axes(ax, False)
 def make_wavelength_axes(ax, **kwargs):
     customize_axes(ax, **kwargs)
     _make_spectral_axes(ax, True)
+
 def _make_spectral_axes(ax, wavelength):
     wl_label = 'Wavelength [Angstroms]'
     wn_label = "Wavenumber [cm$^{-1}$]"
@@ -32,6 +34,29 @@ def _make_spectral_axes(ax, wavelength):
                         xticks = ax.get_xticks()[1:-1],
                         xticklabels = ["%.f" % (1e8/wn) for wn in ax.get_xticks()[1:-1]],
                         xlabel = top_label)
+
+def lines_pos(lines_name, v):
+    return [1e8/(wn*(1-v/3e5)) for wn in Lines().get_line_cm1(lines_name)]
+
+def add_lines_label(ax, filter, velocity, offset=15):
+    if type(velocity) != tuple and type(velocity) != list:
+        velocity = [velocity]
+    xmin, xmax = ax.get_xlim()
+    ymin, ymax = ax.get_ylim()
+    if filter == 'SN2':
+        lines_names = ['Hbeta','[OIII]4959', '[OIII]5007']
+    elif filter == 'SN3':
+        lines_names = ['[NII]6548', 'Halpha', '[NII]6583', '[SII]6716', '[SII]6731']
+    pos = lines_pos(lines_names, velocity[0])
+
+    for i, name in enumerate(lines_names) :
+        ax.annotate(name, ((pos[i]-offset-xmin)/(xmax-xmin), 0.99), xycoords='axes fraction', rotation=90.)
+        #ax.annotate(name, (pos-offset, 0.99*ymax), rotation=90.)
+        #ax.text((pos-10-xmin)/(xmax-xmin), 0.94, name, rotation = 45.)
+
+        color = iter(['k', 'r', 'g'])
+        for v in velocity:
+            ax.axvline(lines_pos(lines_names, v)[i], ymin=0.95, c=next(color), ls='-', lw=1.)
 
 ## Plot a 2D map
 def plot_map(map, region=None, projection=None,
