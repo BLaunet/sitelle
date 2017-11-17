@@ -34,14 +34,14 @@ def extract_spectrum(fit_table, binNumber):
     return axis,fit
 
 def sew_spectra(left, right):
-    if left.spectra.shape[1:] != right.spectra.shape[1:]:
-        raise ValueError('Left and right spectra should have the same spatial dimension. Got %s and %s'%(left.spectra.shape[1:],right.spectra.shape[1:]))
+    if left.spectra.shape[:-1] != right.spectra.shape[:-1]:
+        raise ValueError('Left and right spectra should have the same spatial dimension. Got %s and %s'%(left.spectra.shape[:-1],right.spectra.shape[:-1]))
 
     step = max(left.header['CDELT1'], right.header['CDELT1'])#We choose the largest step (lower resolution)
     axis = np.arange(left.axis.min(), right.axis.max(), step=step)
-    spectra = np.zeros( axis.shape + left.spectra.shape[1:] )
-    error = np.zeros( axis.shape + left.spectra.shape[1:] )
-    fwhm = np.zeros( axis.shape + left.spectra.shape[1:] )
+    spectra = np.zeros( left.spectra.shape[:-1] + axis.shape)
+    error = np.zeros( left.spectra.shape[:-1] + axis.shape )
+    fwhm = np.zeros( left.spectra.shape[:-1] + axis.shape)
 
     left_max_id = np.searchsorted(axis, left.axis.max(), side='right')
     right_min_id = np.searchsorted(axis, right.axis.min())
@@ -50,13 +50,13 @@ def sew_spectra(left, right):
         f = UnivariateSpline(old_axis, spectrum, s=0)
         return f(new_axis)
 
-    spectra[:left_max_id, ...] = np.apply_along_axis(interpolator, 0, left.spectra, left.axis, axis[:left_max_id])
-    error[:left_max_id, ... ] = np.apply_along_axis(interpolator, 0, left.error, left.axis, axis[:left_max_id])
-    fwhm[:left_max_id, ...] = np.apply_along_axis(interpolator, 0, left.fwhm, left.axis, axis[:left_max_id])
+    spectra[..., :left_max_id] = np.apply_along_axis(interpolator, -1, left.spectra, left.axis, axis[:left_max_id])
+    error[..., :left_max_id] = np.apply_along_axis(interpolator, -1, left.error, left.axis, axis[:left_max_id])
+    fwhm[..., :left_max_id] = np.apply_along_axis(interpolator, -1, left.fwhm, left.axis, axis[:left_max_id])
 
-    spectra[right_min_id:, ...] = np.apply_along_axis(interpolator, 0, right.spectra, right.axis, axis[right_min_id:])
-    error[right_min_id:, ...] = np.apply_along_axis(interpolator, 0, right.error, right.axis, axis[right_min_id:])
-    fwhm[right_min_id:, ...] = np.apply_along_axis(interpolator, 0, right.fwhm, right.axis, axis[right_min_id:])
+    spectra[..., right_min_id:] = np.apply_along_axis(interpolator, -1, right.spectra, right.axis, axis[right_min_id:])
+    error[..., right_min_id:] = np.apply_along_axis(interpolator, -1, right.error, right.axis, axis[right_min_id:])
+    fwhm[..., right_min_id:] = np.apply_along_axis(interpolator, -1, right.fwhm, right.axis, axis[right_min_id:])
 
     # What do we put in between ?
     # Mean for fwhm & data cube
@@ -71,45 +71,24 @@ def sew_spectra(left, right):
         worst = 10*max(vect[left_id-1], vect[right_id])
         return np.ones(right_id - left_id)*worst
 
-    spectra[left_max_id:right_min_id, ...] = np.apply_along_axis(spec_func, 0, spectra, left_max_id, right_min_id)
-    error[left_max_id:right_min_id, ...] = np.apply_along_axis(err_func, 0, error, left_max_id, right_min_id)
-    fwhm[left_max_id:right_min_id, ...] = np.apply_along_axis(fwhm_func, 0, fwhm, left_max_id, right_min_id)
+    spectra[..., left_max_id:right_min_id] = np.apply_along_axis(spec_func, -1, spectra, left_max_id, right_min_id)
+    error[..., left_max_id:right_min_id] = np.apply_along_axis(err_func, -1, error, left_max_id, right_min_id)
+    fwhm[..., left_max_id:right_min_id] = np.apply_along_axis(fwhm_func, -1, fwhm, left_max_id, right_min_id)
 
     return NburstFitter(axis, spectra, error, fwhm, left.header)
 
 class NburstFitter():
+
     nburst_working_dir = Path('/Users/blaunet/Documents/M31/nburst/')
     idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64:"
-    def __init__(self, axis, spectra, error, fwhm, header, filedir, prefix):
-        """
-        all in wavenumber (== sortie de orcs)
-        error et fwhm = meme dim spatiale que cube
-        cube peut etre 3d, 2d (list de spectre), ou 1d
-        cube [x,y,z] ou cube[x,z] ou cube[z]
-        """
-        self.axis = axis
-        if len(spectra.shape) == 1:
-            self.spectra = spectra.reshape(1, spectra.shape[0])
-        else:
-            self.spectra = spectra
-        self.error = self._check_shape(self.spectra, error)
-        self.fwhm = self._check_shape(self.spectra,fwhm)
-        self.header = header
+    idl_startup_script = "~/.idl/start.pro"
 
-        self.fit_params={}
-        self.filedir = Path(filedir).abspath()
-        self.prefix = prefix
-        self.idl_result = None
-        self.fitted_spectra = None
-        self.fit_name = None
-
-        self._save_input()
-        ## Environment variables
-
-        self.idl_startup_script = "~/.idl/start.pro"
-        self.template_path = self.nburst_working_dir / 'template.pro'
     @classmethod
     def set_env(cls, machine):
+        '''
+        Sets some path for idl/nburst. Implemented only for barth usage
+        :param machine: hostname of the machine
+        '''
         if machine == 'tycho':
             cls.nburst_working_dir = Path('/obs/blaunet/nburst/')
             cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
@@ -118,62 +97,126 @@ class NburstFitter():
 
     @classmethod
     def from_sitelle_data(cls, axis, spectra, error, fwhm, ORCS_cube, filedir, prefix):
+        """
+        This function converts sitelle data to be fitted by Nburst.
+        It interpolates a spectra onto a regular wavelength grid, and creates error and fwhm spectra as well.
+        Spectra, error and fwhm should have the same **spatial** dimensions (x or x,y)
+        :param axis: spectral axis of the cube, in wavenumber [cm-1]
+        :param spectra: a 1,2 or 3D spectra dim=[x,y,z]
+        :param error: an error array of the same spatial dim as the spectra ([x,y] if spectra is [x,y,z]), i.e one error per pixel
+        :param fwhm: a fwhm array of the same spatial dim as the spectra ([x,y] if spectra is [x,y,z]), i.e one fwhm per pixel
+        :param ORCS_cube: the SpectralCube from which the spectra is exatracted
+        :param filedir: the folder where the NburstFitter should be stored
+        :param prefix: a prefix for this data
+        """
         if len(spectra.shape) == 1:
             original_spectra = spectra.reshape(1, spectra.shape[0])
         else:
             original_spectra = spectra
 
-        original_error = cls._check_shape(original_spectra, error)
-        original_fwhm = cls._check_shape(original_spectra,fwhm)
+        if type(error) is not np.ndarray:
+            original_error = np.array([error])
+        else:
+            original_error = error
+
+        if type(fwhm) is not np.ndarray:
+            original_fwhm = np.array([fwhm])
+        else:
+            original_fwhm = fwhm
+
+        if original_spectra.shape[:-1] != original_error.shape:
+            raise ValueError("spatial dimensions don't match : error : %s, spectra : %s"%(original_error.shape, original_spectra.shape))
+        if original_spectra.shape[:-1] != original_fwhm.shape:
+            raise ValueError("spatial dimensions don't match : fwhm : %s, spectra : %s"%(original_fwhm.shape, original_spectra.shape))
+
         xlims = ORCS_cube.get_filter_range()
         wl_axis = regular_wl_axis(axis, xlims).astype(float)
 
         #creation of an error cube
-        err_cube = np.repeat(original_error.T[np.newaxis, ...],len(wl_axis), 0)
+        err_cube = np.repeat(original_error[..., np.newaxis],len(wl_axis), -1)
 
         #creation of a fwhm cube
         fwhm_cube = np.repeat(original_fwhm[..., np.newaxis],len(wl_axis), -1)
         for xy in np.ndindex(fwhm_cube.shape[:-1]):
             fwhm_cube[xy] = np.array([fwhm*lam**2/1e8 for fwhm,lam in zip(fwhm_cube[xy], wl_axis)])
-        fwhm_cube = fwhm_cube.T
 
         #creation of the data cube interpolated on wl axis
         wl_spectra = np.zeros(original_spectra.shape[:-1]+wl_axis.shape)
         for xy in np.ndindex(original_spectra.shape[:-1]):
             wl_spectra[xy] = UnivariateSpline(axis.astype(float),original_spectra[xy],s=0)(1e8/wl_axis)
-        wl_spectra = wl_spectra.T
 
         #Header
-        wl_header = gen_wavelength_header(ORCS_cube.get_header(), wl_axis)
-        nburst_header = swap_header_axis(wl_header, 1,3)
+        wl_header = gen_wavelength_header(ORCS_cube.get_header(), wl_axis, 3)
 
-        nburst_fitter =  cls(wl_axis, wl_spectra, err_cube, fwhm_cube, nburst_header, filedir, prefix)
+        nburst_fitter =  cls(wl_axis, wl_spectra, err_cube, fwhm_cube, wl_header, filedir, prefix)
         nburst_fitter.fit_params['lmin'] = 4825.0 if ORCS_cube.params.filter_name == 'SN2' else 6480.
         nburst_fitter.fit_params['lmax'] = 5132.0 if ORCS_cube.params.filter_name == 'SN2' else 6800.
         return nburst_fitter
 
     @classmethod
-    def from_previous(cls, filedir, prefix):
-        spectra, header = io.read_fits(filedir+prefix+'_data.fits', return_header = True)
-        errors = io.read_fits(filedir+prefix+'_error.fits')
-        fwhms = io.read_fits(filedir+prefix+'_fwhm.fits')
+    def from_previous(cls, filedir, prefix, fit_name = None):
+        """
+        Reload a NburstFitter that had been created previously, based on its filedir and prefix.
+        :param filedir: the folder where the data is stored
+        :param prefix: the prefix of this data
+        :param fit_name: (optional) the fit_name, if already performed
+        """
+        spectra, header = io.read_fits(Path(filedir) / prefix+'_data.fits', return_header = True)
+        spectra = spectra.T
+        if len(spectra.shape) == 1:
+            spectra = spectra.reshape(1, spectra.shape[0])
+        errors = io.read_fits(Path(filedir) / prefix+'_error.fits').T
+        if len(errors.shape) == 1:
+            errors = errors.reshape(1, errors.shape[0])
+        fwhms = io.read_fits(Path(filedir)  / prefix+'_fwhm.fits').T
+        if len(fwhms.shape) == 1:
+            fwhms = fwhms.reshape(1, fwhms.shape[0])
         axis = read_wavelength_axis(header, 1)
-        return cls(axis, spectra, errors, fwhms, header, filedir, prefix)
+        header = swap_header_axis(header, 1, len(spectra.shape))
 
-    @classmethod
-    def from_single_spectra(cls, axis, spectra, error, fwhm, header, filedir, prefix):
-        spectra = spectra.reshape(spectra.shape[0], 1)
-        error = error.reshape(error.shape[0], 1)
-        fwhm = fwhm.reshape(fwhm.shape[0], 1)
-        return cls(axis, spectra, error, fwhm, header, filedir, prefix)
+        return cls(axis, spectra, errors, fwhms, header, filedir, prefix, fit_name)
 
-    @staticmethod
-    def _check_shape(spectra,q):
-        if type(q) is not np.ndarray:
-            q = np.array([q])
-        if spectra.shape[:-1] != q.shape[:-1]:
-            raise ValueError("shape %s doesn't match spectra shape %s : "%(q.shape, spectra.shape))
-        return q
+    # @classmethod
+    # def from_single_spectra(cls, axis, spectra, error, fwhm, header, filedir, prefix):
+    #     spectra = spectra.reshape(1, spectra.shape[0])
+    #     error = error.reshape(1, error.shape[0])
+    #     fwhm = fwhm.reshape(1, fwhm.shape[0])
+    #     return cls(axis, spectra, error, fwhm, header, filedir, prefix)
+
+    def __init__(self, axis, spectra, error, fwhm, header, filedir, prefix, fit_name=None, force = False):
+        """
+        Initialize a NBurstFitter instance
+        :param axis: a regular wavelength axis in Angstroms
+        :param spectra: a 1,2 or 3D spectra of shape [z], [y,z] or [x,y,z]
+        :param error: an error array of the same shape as spectra
+        :param fwhm: an fwhm array of the same shape as spectra
+        :param header: a header describing the data. Should match spectra shape : [NAXIS1, NAXIS2, NAXIS3] <=> [x,y,z]
+        :param filedir: the folder where the data is stored
+        :param prefix: the prefix of this data
+        """
+        self.axis = axis
+        self.spectra = spectra
+        if error.shape != self.spectra.shape:
+            raise ValueError("Error shape %s doesn't match spectra shape %s : "%(error.shape, self.spectra.shape))
+        else:
+            self.error = error
+        if fwhm.shape != self.spectra.shape:
+            raise ValueError("Fwhm shape %s doesn't match spectra shape %s : "%(fwhm.shape, self.spectra.shape))
+        else:
+            self.fwhm = fwhm
+        self.header = header
+
+        self.fit_params={}
+        self.filedir = Path(filedir).abspath()
+        self.prefix = prefix
+        self.idl_result = None
+        self.fitted_spectra = None
+        self.fit_name = fit_name
+
+        if not (self.filedir/self.prefix+'_data.fits').isfile() or force is True:
+            self._save_input()
+        ## Environment variables
+        self.template_path = self.nburst_working_dir / 'template.pro'
 
     def _save_input(self, filedir=None, prefix=None):
         if filedir is None:
@@ -192,11 +235,18 @@ class NburstFitter():
 
         self.filedir.makedirs_p()
 
-        io.write_fits(self.filedir / self.prefix+'_data.fits', self.spectra, self.header, overwrite=True)
-        io.write_fits(self.filedir / self.prefix+'_fwhm.fits', self.fwhm, self.header, overwrite=True)
-        io.write_fits(self.filedir / self.prefix+'_error.fits', self.error, self.header, overwrite=True)
+        swaped_header = swap_header_axis(self.header, 1, len(self.spectra.shape))
 
-    def configure_fit(self, fit_name, **kwargs):
+        io.write_fits(self.filedir / self.prefix+'_data.fits', self.spectra.T, swaped_header, overwrite=True)
+        io.write_fits(self.filedir / self.prefix+'_fwhm.fits', self.fwhm.T, swaped_header, overwrite=True)
+        io.write_fits(self.filedir / self.prefix+'_error.fits', self.error.T, swaped_header, overwrite=True)
+
+    def configure_fit(self, fit_name=None, **kwargs):
+        if fit_name is None:
+            if self.fit_name is None:
+                raise ValueError('Please provide a name for this fit configuration')
+            else:
+                fit_name = self.fit_name
         self.fit_name = fit_name
 
         self.fit_params['galfile'] = str(self.filedir / self.prefix+ '_data.fits')
@@ -204,14 +254,14 @@ class NburstFitter():
         self.fit_params['fwhmfile'] = str(self.filedir / self.prefix+ '_fwhm.fits')
         self.fit_params['result_file'] = str(self.filedir / self.prefix+'_'+self.fit_name+'_fitted.fits')
         try:
-            nz, ny, nx = self.spectra.shape
+            nx, ny, nz = self.spectra.shape
             self.fit_params['nx'] = nx
             self.fit_params['nz'] = nz
             self.fit_params['ny'] = ny
             self.fit_params['read3d'] = True
             self.fit_params['xsize'] = ny
         except ValueError:
-            nz, nx = self.spectra.shape
+            nx, nz = self.spectra.shape
             self.fit_params['nx'] = nx
             self.fit_params['nz'] = nz
             self.fit_params['ny'] = 0
@@ -283,32 +333,85 @@ class NburstFitter():
             sys.stdout.flush()
         retval = p.wait()
 
-        self.read_result(self.filedir / self.prefix+'_'+self.fit_name+'_fitted.fits')
+        self.read_result()
 
-    def read_result(self, filename=None):
+    def read_result(self, filename=None, force = False):
+        if self.fitted_spectra is not None and force is False:
+            return None
         if filename is None:
             filename = self.filedir / self.prefix+'_'+self.fit_name+'_fitted.fits'
         hdu = fits.open(filename)
-        self.bin_table = hdu[1].data[0][0].astype(int).reshape(self.fwhm.shape[1:])
+        self.bin_table = hdu[1].data[0][0].astype(np.uint).reshape(self.spectra.shape[:-1])
         self.idl_result = hdu[2].data
+
+        specs = self.idl_result['FIT'][self.bin_table]
+        idl_axis = self.idl_result['WAVE'][0]
+        def interpolate(spec, old_axis, new_axis):
+            return UnivariateSpline(old_axis, spec, s=0, ext='zeros')(new_axis)
+        self.fitted_spectra = np.apply_along_axis(interpolate, -1, specs, idl_axis, self.axis)
+        # coldefs = idl_result.columns
+        # coldefs.add_col(fits.Column(name='BESTFIT', array=bestfit.T, format='%dD'%bestfit.shape[0]))
+        # self.idl_result = fits.FITS_rec.from_columns(coldefs)
 
     def extract_spectrum(self, binNumber):
         axis = self.idl_result['WAVE'][binNumber,:]
         fit = self.idl_result['FIT'][binNumber,:]
         return axis,fit
-    def get_fitted_spectra(self):
-        if self.fitted_spectra is None:
-            if self.idl_result is None:
-                self.read_result()
-            specs = self.idl_result['FIT'][self.bin_table].T
-            idl_axis = self.idl_result['WAVE'][0]
-            def interpolate(spec, old_axis, new_axis):
-                return UnivariateSpline(old_axis, spec, s=0, ext='zeros')(new_axis)
-            self.fitted_spectra = np.apply_along_axis(interpolate, 0, specs, idl_axis, self.axis)
-        return self.fitted_spectra
+
+class NburstFitterList():
+
+    nburst_working_dir = Path('/Users/blaunet/Documents/M31/nburst/')
+    idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64:"
+    idl_startup_script = "~/.idl/start.pro"
+
+    @classmethod
+    def set_env(cls, machine):
+        if machine == 'tycho':
+            cls.nburst_working_dir = Path('/obs/blaunet/nburst/')
+            cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
+        else:
+            pass
+    def __init__(self, fitters):
+        self.fitters = fitters
+        self.axis = self.fitters[0].axis
+        self.spectra = np.concatenate([fitter.spectra for fitter in self.fitters], axis=1)
+        self.error = np.concatenate([fitter.error for fitter in self.fitters], axis=1)
+        self.fwhm = np.concatenate([fitter.fwhm for fitter in self.fitters], axis=1)
+
+        self.fitted_spectra = None
+    def configure_fit(self, **kwargs):
+        for fitter in self.fitters:
+            fitter.configure_fit(**kwargs)
+
+    def run_each(self):
+        env = os.environ
+        env['PATH'] = self.idl_binary_path + env['PATH']
+        env['IDL_STARTUP'] = self.idl_startup_script
+
+        script_path = ' '.join([fitter.filedir / fitter.prefix+'_'+fitter.fit_name+'.pro' for fitter in self.fitters])
+        p = subprocess.Popen('idl %s'%script_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+        for line in p.stdout.readlines():
+            print line,
+            sys.stdout.flush()
+        retval = p.wait()
+
+        self.read_result()
+    def read_result(self, force = False):
+        if self.fitted_spectra is not None and force is False:
+            return None
+        for fitter in self.fitters:
+            fitter.read_result()
+
+        self.idl_result={}
+        for col in self.fitters[0].idl_result.columns:
+            if col.name == 'CHI2' or 'D' in col.format:
+                self.idl_result[col.name] = np.concatenate([fitter.idl_result[col.name] for fitter in self.fitters], axis=0)
+        self.fitted_spectra = np.concatenate([fitter.fitted_spectra for fitter in self.fitters], axis=1)
+
 
 if 'johannes' in socket.gethostname() or 'tycho' in socket.gethostname():
     NburstFitter.set_env('tycho')
+    NburstFitterList.set_env('tycho')
 
     # def extract_spectrum(self, binNumber, wn_axis):
     #     wl_axis, fit = self.extract_wl_spectrum(binNumber)
