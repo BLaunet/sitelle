@@ -22,13 +22,13 @@ def estimate_noise(full_axis, full_spectrum, filter_lims, side='both'):
     return np.std(noise)
 
 
-def gen_wavelength_header(h, axis):
-    h['NAXIS3'] = len(axis)
-    h['CRPIX3'] = 1
-    h['CRVAL3'] = axis[0]
-    h['CDELT3'] = axis[1]-axis[0]
-    h['CUNIT3'] = 'Angstroms'
-    h['CTYPE3'] = 'LINEAR'
+def gen_wavelength_header(h, axis, ax_num = 3):
+    h['NAXIS%d'%ax_num] = len(axis)
+    h['CRPIX%d'%ax_num] = 1
+    h['CRVAL%d'%ax_num] = axis[0]
+    h['CDELT%d'%ax_num] = axis[1]-axis[0]
+    h['CUNIT%d'%ax_num] = 'Angstroms'
+    h['CTYPE%d'%ax_num] = 'LINEAR'
     return h
 
 def read_wavelength_axis(header, axis):
@@ -124,8 +124,14 @@ def swap_header_axis(h, a0, a1):
     keywords = ['NAXIS', 'CRPIX', 'CRVAL', 'CDELT', 'CUNIT', 'CTYPE']
     tmp = {}
     for k in keywords:
-        tmp[k] = h[k+str(a0)]
-        h[k+str(a0)] = h[k+str(a1)]
+        try:
+            tmp[k] = h[k+str(a0)]
+        except KeyError:
+            tmp[k] = ''
+        try:
+            h[k+str(a0)] = h[k+str(a1)]
+        except KeyError:
+            h[k+str(a0)] = ''
         h[k+str(a1)] = tmp[k]
 
     for k in h.keys():
@@ -133,3 +139,12 @@ def swap_header_axis(h, a0, a1):
             if str(a0) in k:
                 h[k.replace(str(a0), str(a1))] = h.pop(k)
     return h
+
+
+def spectral_smooth(spectra ,p):
+    smoothed = spectra.copy()
+    for i in range(len(spectra)):
+        imin = max(0, i-p)
+        imax = min(len(spectra), i+p+1)
+        smoothed[i] = np.median(spectra[imin:imax])
+    return smoothed
