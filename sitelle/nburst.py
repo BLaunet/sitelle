@@ -78,6 +78,12 @@ def sew_spectra(left, right):
     return NburstFitter(axis, spectra, error, fwhm, left.header)
 
 class NburstFitter():
+    """
+    This class is a helper to fit spectra with Nburst directly from python.
+    It stores data as expected by Nburst, configure a script with user-defined parameters and runs it.
+
+
+    """
 
     nburst_working_dir = Path('/Users/blaunet/Documents/M31/nburst/')
     idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64:"
@@ -191,8 +197,9 @@ class NburstFitter():
         :param error: an error array of the same shape as spectra
         :param fwhm: an fwhm array of the same shape as spectra
         :param header: a header describing the data. Should match spectra shape : [NAXIS1, NAXIS2, NAXIS3] <=> [x,y,z]
-        :param filedir: the folder where the data is stored
-        :param prefix: the prefix of this data
+        :param filedir: the folder where the data should be stored
+        :param prefix: the prefix for this data
+        :param fit_name: (optional)
         """
         self.axis = axis
         self.spectra = spectra
