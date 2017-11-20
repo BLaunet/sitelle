@@ -347,8 +347,14 @@ class NburstFitter():
         if filename is None:
             filename = self.filedir / self.prefix+'_'+self.fit_name+'_fitted.fits'
         hdu = fits.open(filename)
-        self.bin_table = hdu[1].data[0][0].astype(np.uint).reshape(self.spectra.shape[:-1])
-        self.idl_result = hdu[2].data
+        try:
+            self.bin_table = hdu[1].data[0][0].astype(np.uint).reshape(self.spectra.shape[:-1])
+            self.idl_result = hdu[2].data
+        except IndexError:
+            print "Can not load results for %s; the fit probably didn't converge"%(filename)
+            self.idl_result = None
+            self.fitted_spectra = None
+            return None
 
         specs = self.idl_result['FIT'][self.bin_table]
         idl_axis = self.idl_result['WAVE'][0]
@@ -406,7 +412,13 @@ class NburstFitterList():
         if self.fitted_spectra is not None and force is False:
             return None
         for fitter in self.fitters:
-            fitter.read_result()
+            fitter.read_result(force=force)
+            if fitter.fitted_spectra is None:
+                fitter.fitted_spectra = np.full_like(fitter.spectra, np.nan)
+                fitter.idl_result = {}
+                for col in self.fitters[0].idl_result.columns:
+                    fitter.idl_result[col.name] = np.full_like(self.fitters[0].idl_result[col.name], np.nan)
+
 
         self.idl_result={}
         for col in self.fitters[0].idl_result.columns:
