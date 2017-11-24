@@ -98,6 +98,9 @@ class NburstFitter():
         if machine == 'tycho':
             cls.nburst_working_dir = Path('/obs/blaunet/nburst/')
             cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
+        elif machine == 'barth':
+            cls.nburst_working_dir = Path('/Volumes/TOSHIBA/M31/nburst/')
+            cls.idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64"
         else:
             pass
 
@@ -380,9 +383,13 @@ class NburstFitterList():
     def set_env(cls, machine):
         if machine == 'tycho':
             cls.nburst_working_dir = Path('/obs/blaunet/nburst/')
-            cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
+            cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64"
+        elif machine == 'barth':
+            cls.nburst_working_dir = Path('/Volumes/TOSHIBA/M31/nburst/')
+            cls.idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64"
         else:
             pass
+
     def __init__(self, fitters):
         self.fitters = fitters
         self.axis = self.fitters[0].axis
@@ -430,7 +437,9 @@ class NburstFitterList():
 if 'johannes' in socket.gethostname() or 'tycho' in socket.gethostname():
     NburstFitter.set_env('tycho')
     NburstFitterList.set_env('tycho')
-
+if 'MacBookAirdeBarthelemy' in socket.gethostname():
+    NburstFitter.set_env('barth')
+    NburstFitterList.set_env('barth')
     # def extract_spectrum(self, binNumber, wn_axis):
     #     wl_axis, fit = self.extract_wl_spectrum(binNumber)
     #     return nm_to_cm1(fit, wl_axis, wn_axis)
