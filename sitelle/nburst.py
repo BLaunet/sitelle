@@ -100,7 +100,7 @@ class NburstFitter():
             cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
         elif machine == 'barth':
             cls.nburst_working_dir = Path('/Volumes/TOSHIBA/M31/nburst/')
-            cls.idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64"
+            cls.idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64:"
         else:
             pass
 
@@ -161,6 +161,12 @@ class NburstFitter():
         nburst_fitter.fit_params['lmax'] = 5132.0 if ORCS_cube.params.filter_name == 'SN2' else 6842.
         return nburst_fitter
 
+    @classmethod
+    def from_sitelle_region(cls, region, ORCS_cube, filedir, prefix, force = False):
+        axis, spec = ORCS_cube.extract_integrated_spectrum(region)
+        error = estimate_noise(axis, spec, ORCS_cube.get_filter_range())
+        fwhm = ORCS_cube.get_fwhm_map()[region].mean()
+        return cls.from_sitelle_data(axis, spec, error, fwhm, ORCS_cube, filedir, prefix, force)
     @classmethod
     def from_previous(cls, filedir, prefix, fit_name = None):
         """
@@ -330,16 +336,17 @@ class NburstFitter():
         with open(self.filedir / self.prefix+'_'+self.fit_name+'.pro', 'w') as out:
             out.writelines(template)
 
-    def run_fit(self):
+    def run_fit(self, silent = False):
         env = os.environ
         env['PATH'] = self.idl_binary_path + env['PATH']
         env['IDL_STARTUP'] = self.idl_startup_script
 
         script_path = self.filedir / self.prefix+'_'+self.fit_name+'.pro'
         p = subprocess.Popen('idl %s'%script_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
-        for line in p.stdout.readlines():
-            print line,
-            sys.stdout.flush()
+        if not silent:
+            for line in p.stdout.readlines():
+                print line,
+                sys.stdout.flush()
         retval = p.wait()
 
         self.read_result()
@@ -383,10 +390,10 @@ class NburstFitterList():
     def set_env(cls, machine):
         if machine == 'tycho':
             cls.nburst_working_dir = Path('/obs/blaunet/nburst/')
-            cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64"
+            cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
         elif machine == 'barth':
             cls.nburst_working_dir = Path('/Volumes/TOSHIBA/M31/nburst/')
-            cls.idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64"
+            cls.idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64:"
         else:
             pass
 
@@ -402,16 +409,17 @@ class NburstFitterList():
         for fitter in self.fitters:
             fitter.configure_fit(**kwargs)
 
-    def run_each(self):
+    def run_each(self, silent = False):
         env = os.environ
         env['PATH'] = self.idl_binary_path + env['PATH']
         env['IDL_STARTUP'] = self.idl_startup_script
 
         script_path = ' '.join([fitter.filedir / fitter.prefix+'_'+fitter.fit_name+'.pro' for fitter in self.fitters])
         p = subprocess.Popen('idl %s'%script_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
-        for line in p.stdout.readlines():
-            print line,
-            sys.stdout.flush()
+        if not silent:
+            for line in p.stdout.readlines():
+                print line,
+                sys.stdout.flush()
         retval = p.wait()
 
         self.read_result()
