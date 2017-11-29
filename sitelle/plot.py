@@ -35,10 +35,14 @@ def _make_spectral_axes(ax, wavelength):
                         xticklabels = ["%.f" % (1e8/wn) for wn in ax.get_xticks()[1:-1]],
                         xlabel = top_label)
 
-def lines_pos(lines_name, v):
-    return [1e8/(wn*(1-v/3e5)) for wn in Lines().get_line_cm1(lines_name)]
+def lines_pos(lines_name, v, wavenumber=False):
+    if wavenumber is True:
+        return [(wn*(1+v/3e5)) for wn in Lines().get_line_cm1(lines_name)]
 
-def add_lines_label(ax, filter, velocity, offset=15):
+    else:
+        return [1e8/(wn*(1-v/3e5)) for wn in Lines().get_line_cm1(lines_name)]
+
+def add_lines_label(ax, filter, velocity, wavenumber=False,offset=15):
     if type(velocity) != tuple and type(velocity) != list:
         velocity = [velocity]
     xmin, xmax = ax.get_xlim()
@@ -47,7 +51,7 @@ def add_lines_label(ax, filter, velocity, offset=15):
         lines_names = ['Hbeta','[OIII]4959', '[OIII]5007']
     elif filter == 'SN3':
         lines_names = ['[NII]6548', 'Halpha', '[NII]6583', '[SII]6716', '[SII]6731']
-    pos = lines_pos(lines_names, velocity[0])
+    pos = lines_pos(lines_names, velocity[0], wavenumber)
 
     for i, name in enumerate(lines_names) :
         ax.annotate(name, ((pos[i]-offset-xmin)/(xmax-xmin), 0.99), xycoords='axes fraction', rotation=90.)
@@ -56,7 +60,7 @@ def add_lines_label(ax, filter, velocity, offset=15):
 
         color = iter(['k', 'r', 'g'])
         for v in velocity:
-            ax.axvline(lines_pos(lines_names, v)[i], ymin=0.95, c=next(color), ls='-', lw=1.)
+            ax.axvline(lines_pos(lines_names, v, wavenumber)[i], ymin=0.95, c=next(color), ls='-', lw=1.)
 
 ## Plot a 2D map
 def plot_map(map, region=None, projection=None,

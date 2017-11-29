@@ -26,6 +26,13 @@ def square_region(x, y, b):
     mask = np.zeros((2048, 2064))
     mask[x:x+b, y:y+b] = 1
     return np.where(mask == 1)
+def centered_square_region(x,y,b):
+    mask = np.zeros((x+b+1, y+b+1))
+    if b%2 == 0:
+        mask[x-b/2:x+b/2, y-b/2:y+b/2] = 1
+    else:
+        mask[x-b/2:x+b/2+1, y-b/2:y+b/2+1] = 1
+    return np.where(mask == 1)
 
 def physical_region(cube, ra, dec, r = 2, circle=True, sex = True):
     """
