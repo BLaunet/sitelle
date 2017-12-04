@@ -142,7 +142,7 @@ def smooth_contour(contour):
     _, a_right = contour['right']
     a_h = np.arange(min(a_left.min(), a_right.min()), max(a_left.max(), a_right.max())+1)
     a_top, _ = contour['top']
-    a_bottom = contour['bottom']
+    a_bottom, _ = contour['bottom']
     a_v = np.arange(min(a_top.min(), a_bottom.min()), max(a_top.max(), a_bottom.max())+1)
     for k in contour:
         if k in ['left', 'right']:
