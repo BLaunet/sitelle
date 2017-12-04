@@ -138,6 +138,12 @@ def smooth_contour(contour):
     :return contour: continuous contour
     """
     new_contour = {}
+    _, a_left = contour['left']
+    _, a_right = contour['right']
+    a_h = np.arange(min(a_left.min(), a_right.min()), max(a_left.max(), a_right.max())+1)
+    a_top, _ = contour['top']
+    a_bottom = contour['bottom']
+    a_v = np.arange(min(a_top.min(), a_bottom.min()), max(a_top.max(), a_bottom.max())+1)
     for k in contour:
         if k in ['left', 'right']:
             O, A = contour[k]
@@ -148,7 +154,11 @@ def smooth_contour(contour):
         O = O[unique_id]
         argsort_A = np.argsort(A)
         smoother = UnivariateSpline(A[argsort_A],O[argsort_A], s=0)
-        new_A = np.arange(A.min(), A.max()+1)
+        if k in ['left', 'right']:
+            new_A = a_h
+        else:
+            new_A = a_v
+        #new_A = np.arange(A.min(), A.max()+1)
         new_O = np.apply_along_axis(lambda x: map(int, map(round, x)), 0, smoother(new_A))
 
         if k in ['left', 'right']:
