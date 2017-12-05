@@ -36,26 +36,29 @@ def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
 
     return np.concatenate(job_output)
 
-def parallel_loop(func, iterator, **kwargs):
+def parallel_loop(func, iterator, *args, **kwargs):
     job_server, ncpus = init_pp_server(multiprocessing.cpu_count(),silent=False)
-    chunks = [l[i:i + n] for i in xrange(0, len(l), n)]
-    return chunks
-    # def helper(func1d, axis, arr, args, kwargs):
-    #     return np.apply_along_axis(func1d, axis, arr, *args, **kwargs)
-    #
-    # modules = kwargs.pop('modules', tuple())
-    # modules += ('import numpy as np',)
-    #
-    # depfuncs = kwargs.pop('depfuncs', tuple())
-    # depfuncs += (func1d,)
-    # jobs = [job_server.submit(
-    #             helper,
-    #             args=(c),
-    #             modules=(modules),
-    #             depfuncs=(depfuncs))
-    #             for c in chunks]
-    #
-    # job_output = [job() for job in jobs]
-    # close_pp_server(job_server)
-    #
-    # return np.concatenate(job_output)
+    it_list = list(iterator)
+    it_chunks = [it_chunk for it_chunk in np.array_split(it_list, ncpus)]
+
+    def helper(func, iterator, args, kwargs):
+        out = []
+        for i in iterator:
+            out.append(func(i, *args, **kwargs))
+        return out
+
+    modules = kwargs.pop('modules', tuple())
+    modules += ('import numpy as np',)
+
+    depfuncs = kwargs.pop('depfuncs', tuple())
+    depfuncs += (func,)
+    jobs = [job_server.submit(
+                helper,
+                args=(func, it_chunk, args, kwargs),
+                modules=(modules),
+                depfuncs=(depfuncs))
+                for it_chunk in it_chunks]
+
+    job_output = [job() for job in jobs]
+    close_pp_server(job_server)
+    return job_output
