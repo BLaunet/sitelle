@@ -34,7 +34,7 @@ def centered_square_region(x,y,b):
         mask[x-b/2:x+b/2+1, y-b/2:y+b/2+1] = 1
     return np.where(mask == 1)
 
-def physical_region(cube, ra, dec, r = 2, circle=True, sex = True):
+def physical_region(cube, ra, dec, r = 2, circle=True, sex = True, centered=True):
     """
     Computes a physical region on a sitelle cube.
     If circle = True (Default), it's a circulare region centered on ra,dec. Otherwise,
@@ -57,6 +57,8 @@ def physical_region(cube, ra, dec, r = 2, circle=True, sex = True):
     x, y = map(int, map(round, cube.world2pix((ra_deg, dec_deg))[0]))
     if circle:
         return circular_region(x, y, r)
+    elif centered:
+        return centered_square_region(x, y, int(round(r)))
     else:
         return square_region(x, y, int(round(r)))
 

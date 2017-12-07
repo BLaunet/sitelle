@@ -59,6 +59,9 @@ def parallel_loop(func, iterator, *args, **kwargs):
                 depfuncs=(depfuncs))
                 for it_chunk in it_chunks]
 
-    job_output = [job() for job in jobs]
+    job_output = []
+    for job in jobs:
+        job_output.append(job())
+
     close_pp_server(job_server)
-    return job_output
+    return np.array(job_output).flatten()
