@@ -63,8 +63,8 @@ def add_lines_label(ax, filter, velocity, wavenumber=False,offset=15):
             ax.axvline(lines_pos(lines_names, v, wavenumber)[i], ymin=0.95, c=next(color), ls='-', lw=1.)
 
 ## Plot a 2D map
-def plot_map(map, region=None, projection=None,
-                colorbar=False, figsize=(7,7), facecolor='w', title='',
+def plot_map(data, ax = None, region=None, projection=None,
+                colorbar=False,
                 xlims=None, ylims=None,
                 **kwargs):
     """
@@ -74,46 +74,59 @@ def plot_map(map, region=None, projection=None,
     :param region: a region (obtained with np.where() for example) to plot on top of the image
     :param projection: a WCS projection to plot the map on
     :param colorbar: if True (non default), a color bar is associated to the plot
-    :param figsize: size of the figure (x,y) in inches (Default (7,7))
-    :param facecolor: background color, Default = 'w'
-    :param title: (optional) a title for the plot
-    :param xlims: limits to apply on the x axis (in pixels)
-    :param ylims: limits to apply on the y axis (in pixels)
+    :param pmin: (Optional) if passed, vmin set to np.nanpercentile(data, pmin)
+    :param pmax: (Optional) if passed, vmin set to np.nanpercentile(data, pmin)
     :param kwargs: kwargs passed to imshow() function (e.g vmin, cmap etc..)
     """
+    if ax is None: #No ax has been given : we have to create a new one
+        if projection:
+            fig, ax = plt.subplots(subplot_kw={'projection':projection})
+        else:
+            fig,ax = plt.subplots()
+    else:
+        fig = ax.get_figure()
+        if projection: #We have to remove the current ax and replace it with one handling the projection
+            pos = ax.get_position()
+            ax.remove()
+            ax = fig.add_axes(pos, projection=projection)
 
-    fig = plt.figure(figsize=figsize, facecolor=facecolor)
     if projection:
-        ax = fig.add_subplot(111, projection=projection)
         ax.coords[0].set_major_formatter('hh:mm:ss.s')
         ax.coords[1].set_major_formatter('dd:mm:ss')
         ax.set_xlabel('RA')
         ax.set_ylabel('DEC')
     else:
-        ax = fig.add_subplot(111)
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
-    im = ax.imshow(map.T, origin='bottom-left', **kwargs)
-    ax.set_title(title)
+
+    pmin = kwargs.pop('pmin', None)
+    pmax = kwargs.pop('pmax', None)
+    if pmin is not None or pmax is not None:
+        if pmin is None:
+            pmin = 10
+        if pmax is None:
+            pmax = 90
+        kwargs['vmin'] = np.nanpercentile(data, pmin)
+        kwargs['vmax'] = np.nanpercentile(data, pmax)
+
+    cmap = kwargs.pop('cmap', 'gray_r')
+    origin = kwargs.pop('origin', 'lower')
+    im = ax.imshow(data.T, origin=origin, cmap=cmap, **kwargs)
+
     if region:
         if isinstance(region[0], tuple): #We have a list of regions:
             for r in region:
-                mask = np.zeros_like(map)
+                mask = np.zeros_like(data)
                 mask[r] = True
                 ax.contour(mask.T, 1, colors='r')
         else:
-            mask = np.zeros_like(map)
+            mask = np.zeros_like(data)
             mask[region] = True
             ax.contour(mask.T, 1, colors='r')
-
-    if xlims:
-        ax.set_xlim(xlims)
-    if ylims:
-        ax.set_ylim(ylims)
     if colorbar:
         fig.colorbar(im)
     if projection:
-        plt.grid()
+        ax.grid()
     return fig, ax
 
 
