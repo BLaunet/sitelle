@@ -63,7 +63,7 @@ def add_lines_label(ax, filter, velocity, wavenumber=False,offset=15):
             ax.axvline(lines_pos(lines_names, v, wavenumber)[i], ymin=0.95, c=next(color), ls='-', lw=1.)
 
 ## Plot a 2D map
-def plot_map(data, ax = None, region=None, projection=None,
+def plot_map(data, ax=None, region=None, projection=None,
                 colorbar=False,
                 xlims=None, ylims=None,
                 **kwargs):
@@ -130,78 +130,42 @@ def plot_map(data, ax = None, region=None, projection=None,
     return fig, ax
 
 
-def plot_spectra(*args, **kwargs):
+def plot_spectra(axis, spectra, ax=None, wavenumber=True, **kwargs):
     """
     Helper function to plot spectra
-
     :param args: args accepted by plt.plot()
                 e.g : plot(ax1, spec1, 'r', ax2, spec2, 'g')
-    :param xlims: limits to apply on the x axis (in cm-1)
-    :param ylims: limits to apply on the y axis (in cm-1)
     :param label: list of labels of same size as number of plots
-    :param figsize:
-    :param facecolor:
     :param vlines: list of vertical lines x position
     :param annotations: list of annonations to add to the plot. Each annotation should be a tuple (text, position)
     :param legendloc: keyword to locate the lmegend (default = 'best')
-    :param title: title to add
     :param ax: ax where to plot
-    :param return: returns the created figure
     """
-    xlims = kwargs.pop('xlims', None)
-    ylims = kwargs.pop('ylims', None)
-    label = kwargs.pop('label', '')
-    annotations = kwargs.pop('annotations', None)
-    vlines = kwargs.pop('vlines', None)
-    legendloc = kwargs.pop('legendloc', 'best')
-    title = kwargs.pop('title', '')
-
-    fs = kwargs.pop('figsize', (12,6))
-    fc = kwargs.pop('facecolor', 'w')
-
-    ax1 = kwargs.pop('ax', None)
-    return_figure = kwargs.pop('return_figure', True)
-    if ax1 is None:
-        fig, ax1 = plt.subplots(1,1, figsize=fs, facecolor=fc)
+    if ax is None: #No ax has been given : we have to create a new one
+        fig,ax = plt.subplots()
     else:
-        return_figure = False
+        fig = ax.get_figure()
+    label = kwargs.pop('label', None)
+    ax.plot(axis, spectra, label = label, **kwargs)
+    if label is not None:
+        ax.legend()
 
-    lineObjects = ax1.plot(*args)
-    if xlims:
-        ax1.set_xlim(xlims)
-    if ylims:
-        ax1.set_ylim(ylims)
-    ymin, ymax = ax1.get_ylim()
-    if annotations:
-        for an in annotations:
-            try:
-                scale = an[2]
-            except IndexError:
-                scale = 0.95
-            ax1.annotate(an[0], xy=(an[1], ymax*scale))
-    if vlines:
-        for line in vlines:
-            ax1.axvline(line, ymin=0.98,c='k', ls='-', lw=1.)
+    if wavenumber:
+        make_wavenumber_axes(ax)
+    else:
+        make_wavelength_axes(ax)
+    return fig, ax
 
-    #Cosmetics
-    ax1.set_xlabel('Wavenumber [cm$^{-1}$]')
-    ax1.set_ylabel('Flux [erg/cm$^2$/s/A]')
-    #Angstroms x axis
-    ax2=ax1.twiny()
-    ax2.set_xlim(ax1.get_xlim())
-    ax2.set_xticks(ax1.get_xticks()[1:-1])
-    ax2.set_xticklabels(["%.f" % (1e8/wn) for wn in ax1.get_xticks()[1:-1]])
-    ax2.set_xlabel("Wavelength [Angstroms]")
-
-    if label != '':
-        if type(label) == str:
-            ax1.legend(iter(lineObjects), [label], loc=legendloc)
-        else:
-            ax1.legend(iter(lineObjects), label, loc=legendloc)
-    ax1.grid()
-    ax1.set_title(title,position=(0.1,1.1))
-    if return_figure:
-        return fig
+def plot_hist(map, ax=None, log = False, **kwargs):
+    if ax is None:
+        f,ax = plt.subplots()
+    else:
+        f = ax.get_figure()
+    h = np.histogram(map[~np.isnan(map)], **kwargs)
+    X = h[1][:-1]
+    Y = h[0]
+    ax.bar(h[1][:-1], h[0], align='edge', width = h[1][1]-h[1][0], log=log)
+    return f,ax
 
 class Interactive1DPlotter:
     def __init__(self, axes, cube_axis, cube, *args, **kwargs):
