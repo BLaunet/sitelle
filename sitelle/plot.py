@@ -129,7 +129,19 @@ def plot_map(data, ax=None, region=None, projection=None,
         ax.grid()
     return fig, ax
 
-
+def plot_scatter(x,y,ax=None, **kwargs):
+    if ax is None: #No ax has been given : we have to create a new one
+        fig,ax = plt.subplots()
+    else:
+        fig = ax.get_figure()
+    label = kwargs.pop('label', None)
+    color = kwargs.pop('c', 'red')
+    color = kwargs.pop('color', color)
+    marker = kwargs.pop('marker', '+')
+    ax.scatter(x,y,label = label, color = color, marker = marker, **kwargs)
+    if label is not None:
+        ax.legend()
+    return fig, ax
 def plot_spectra(axis, spectra, ax=None, wavenumber=True, **kwargs):
     """
     Helper function to plot spectra
