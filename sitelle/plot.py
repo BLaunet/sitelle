@@ -177,6 +177,7 @@ def plot_hist(map, ax=None, log = False, **kwargs):
     X = h[1][:-1]
     Y = h[0]
     ax.bar(h[1][:-1], h[0], align='edge', width = h[1][1]-h[1][0], log=log)
+    ax.set_title('Median : %.4f, Std : %.4f'%(np.nanmedian(map), np.nanstd(map)))
     return f,ax
 
 class Interactive1DPlotter:
