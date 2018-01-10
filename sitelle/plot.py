@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patches as patches
 from orb.fit import Lines
-
+from photutils import CircularAperture
 
 def customize_axes(axes, **kwargs):
     for k,v in kwargs.items():
@@ -168,16 +168,45 @@ def plot_spectra(axis, spectra, ax=None, wavenumber=True, **kwargs):
         make_wavelength_axes(ax)
     return fig, ax
 
-def plot_hist(map, ax=None, log = False, **kwargs):
+def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, **kwargs):
     if ax is None:
         f,ax = plt.subplots()
     else:
         f = ax.get_figure()
-    h = np.histogram(map[~np.isnan(map)], **kwargs)
+    if pmin is not None:
+        min = np.nanpercentile(map, pmin)
+    else:
+        min = np.nanmin(map)
+    if pmax is not None:
+        max = np.nanpercentile(map, pmax)
+    else:
+        max = np.nanmax(map)
+    if type(map) is np.ma.MaskedArray:
+        _map = np.ma.copy(map)
+    else:
+        _map = np.copy(map)
+    _map[_map > max] = np.nan
+    _map[_map < min] = np.nan
+    h = np.histogram(_map[~np.isnan(_map)], **kwargs)
     X = h[1][:-1]
     Y = h[0]
     ax.bar(h[1][:-1], h[0], align='edge', width = h[1][1]-h[1][0], log=log)
-    ax.set_title('Median : %.4f, Std : %.4f'%(np.nanmedian(map), np.nanstd(map)))
+    if type(_map) is np.ma.MaskedArray:
+        med = np.nanmedian(_map.data[~_map.mask])
+    else:
+        med = np.nanmedian(_map)
+    ax.set_title('Median : %.2e, Std : %.2e'%(med, np.nanstd(_map)))
+    return f,ax
+
+def plot_sources(sources, ax, **kwargs):
+    f = ax.get_figure()
+    positions=(sources['ycentroid'], sources['xcentroid'])
+    apertures = CircularAperture(positions, r=4.)
+    color = kwargs.pop('c', 'red')
+    color = kwargs.pop('color', color)
+    lw = kwargs.pop('lw', 1.5)
+    alpha = kwargs.pop('alpha', 0.5)
+    apertures.plot(color=color, lw=lw, alpha=alpha, ax=ax, **kwargs)
     return f,ax
 
 class Interactive1DPlotter:
