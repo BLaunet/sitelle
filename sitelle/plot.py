@@ -169,33 +169,28 @@ def plot_spectra(axis, spectra, ax=None, wavenumber=True, **kwargs):
     return fig, ax
 
 def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, **kwargs):
+    _map = np.copy(map)
+    if type(map) is np.ma.MaskedArray:
+        _map = _map[~map.mask]
     if ax is None:
         f,ax = plt.subplots()
     else:
         f = ax.get_figure()
     if pmin is not None:
-        min = np.nanpercentile(map, pmin)
+        min = np.nanpercentile(_map, pmin)
     else:
-        min = np.nanmin(map)
+        min = np.nanmin(_map)
     if pmax is not None:
-        max = np.nanpercentile(map, pmax)
+        max = np.nanpercentile(_map, pmax)
     else:
-        max = np.nanmax(map)
-    if type(map) is np.ma.MaskedArray:
-        _map = np.ma.copy(map)
-    else:
-        _map = np.copy(map)
+        max = np.nanmax(_map)
     _map[_map > max] = np.nan
     _map[_map < min] = np.nan
     h = np.histogram(_map[~np.isnan(_map)], **kwargs)
     X = h[1][:-1]
     Y = h[0]
     ax.bar(h[1][:-1], h[0], align='edge', width = h[1][1]-h[1][0], log=log)
-    if type(_map) is np.ma.MaskedArray:
-        med = np.nanmedian(_map.data[~_map.mask])
-    else:
-        med = np.nanmedian(_map)
-    ax.set_title('Median : %.2e, Std : %.2e'%(med, np.nanstd(_map)))
+    ax.set_title('Median : %.2e, Std : %.2e'%(np.nanmedian(_map), np.nanstd(_map)))
     return f,ax
 
 def plot_sources(sources, ax, **kwargs):
