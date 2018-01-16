@@ -7,6 +7,7 @@ from astropy.stats import sigma_clipped_stats
 from orb.astrometry import Astrometry
 from astropy.convolution import Gaussian2DKernel
 from astropy.table import Table
+from orb.utils import vector
 
 def filter_sources(sources, annulus):
     x,y = sources['ycentroid'], sources['xcentroid']
@@ -22,9 +23,9 @@ def extract_max_frame(x,y, spectral_cube, detection_pos_frame):
     data = spectral_cube.get_data(x-10, x+11, y-10,y+11, iframe-2,iframe+3)
     return np.sum(data, axis=2)
 
-def extract_point_source(xy, cube):
-    big_box = centered_square_region(*xy, b=30)
-    small_box = centered_square_region(*xy, b=3)
+def extract_point_source(xy, cube, small_bin=3, big_bin = 30):
+    big_box = centered_square_region(*xy, b=big_bin)
+    small_box = centered_square_region(*xy, b=small_bin)
     mask = np.zeros((cube.dimx, cube.dimy))
     mask[big_box]=1
     mask[small_box]=0
@@ -32,8 +33,10 @@ def extract_point_source(xy, cube):
     a,s, n = cube.extract_integrated_spectrum(small_box, silent=True, return_spec_nb = True)
     return a, s-n*bkg_spec
 
-def check_source(x,y, spectral_cube, detection_pos_frame=None):
+def check_source(x,y, spectral_cube, detection_pos_frame=None, smooth_factor = None):
     a,s = extract_point_source((x,y), spectral_cube)
+    if smooth_factor is not None:
+        s = vector.smooth(s, smooth_factor)
     f = plot_spectra(a,s)
     if detection_pos_frame is not None:
         f,ax = plot_map(extract_max_frame(x,y, spectral_cube, detection_pos_frame))
