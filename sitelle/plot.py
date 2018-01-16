@@ -54,8 +54,8 @@ def add_lines_label(ax, filter, velocity, wavenumber=False,offset=15):
     pos = lines_pos(lines_names, velocity[0], wavenumber)
 
     for i, name in enumerate(lines_names) :
-        ax.annotate(name, ((pos[i]-offset-xmin)/(xmax-xmin), 0.99), xycoords='axes fraction', rotation=90.)
-        #ax.annotate(name, (pos-offset, 0.99*ymax), rotation=90.)
+        #ax.annotate(name, ((pos[i]-offset-xmin)/(xmax-xmin), 0.99), xycoords='axes fraction', rotation=90.)
+        ax.annotate(name, (pos[i]-offset, 0.99*ymax), rotation=90.,  annotation_clip = False)
         #ax.text((pos-10-xmin)/(xmax-xmin), 0.94, name, rotation = 45.)
 
         color = iter(['k', 'r', 'g'])
