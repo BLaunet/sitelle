@@ -26,6 +26,7 @@ def read(filename):
     hdu = fits.open(filename)
     bin_table = hdu[1].data
     fit_table = hdu[2].data
+    hdu.close()
     return bin_table, fit_table
 
 def extract_spectrum(fit_table, binNumber):
@@ -210,11 +211,13 @@ class NburstFitter():
         :param fit_name: (optional)
         """
         self.axis = axis
-        self.spectra = spectra
+        self.spectra = np.atleast_2d(spectra)
+        error = np.atleast_2d(error)
         if error.shape != self.spectra.shape:
             raise ValueError("Error shape %s doesn't match spectra shape %s : "%(error.shape, self.spectra.shape))
         else:
             self.error = error
+        fwhm = np.atleast_2d(fwhm)
         if fwhm.shape != self.spectra.shape:
             raise ValueError("Fwhm shape %s doesn't match spectra shape %s : "%(fwhm.shape, self.spectra.shape))
         else:
@@ -282,8 +285,10 @@ class NburstFitter():
             self.fit_params['ny'] = 0
             self.fit_params['read3d'] = False
             self.fit_params['xsize'] = False
-
+        if 'silent' not in kwargs:
+            kwargs['silent']=True
         self.fit_params.update(kwargs)
+
         if 'lmin' not in self.fit_params:
             self.fit_params['lmin'] = False
         if 'lmax' not in self.fit_params:
@@ -355,17 +360,21 @@ class NburstFitter():
         if self.fitted_spectra is not None and force is False:
             return None
         if filename is None:
-            filename = self.filedir / self.prefix+'_'+self.fit_name+'_fitted.fits'
+            try:
+                filename = self.filedir / self.prefix+'_'+self.fit_name+'_fitted.fits'
+            except TypeError:
+                filename = self.filedir / self.prefix+'_fitted.fits'
         hdu = fits.open(filename)
         try:
             self.bin_table = hdu[1].data[0][0].astype(np.uint).reshape(self.spectra.shape[:-1])
             self.idl_result = hdu[2].data
         except IndexError:
             print "Can not load results for %s; the fit probably didn't converge"%(filename)
+            hdu.close()
             self.idl_result = None
             self.fitted_spectra = None
             return None
-
+        hdu.close()
         specs = self.idl_result['FIT'][self.bin_table]
         idl_axis = self.idl_result['WAVE'][0]
         def interpolate(spec, old_axis, new_axis):
@@ -448,6 +457,3 @@ if 'johannes' in socket.gethostname() or 'tycho' in socket.gethostname():
 if 'MacBookAirdeBarthelemy' in socket.gethostname():
     NburstFitter.set_env('barth')
     NburstFitterList.set_env('barth')
-    # def extract_spectrum(self, binNumber, wn_axis):
-    #     wl_axis, fit = self.extract_wl_spectrum(binNumber)
-    #     return nm_to_cm1(fit, wl_axis, wn_axis)
