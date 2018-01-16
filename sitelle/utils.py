@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.interpolate import UnivariateSpline
-
+import orb
 def estimate_noise(full_axis, full_spectrum, filter_lims, side='both'):
     '''
     Estimates the noise in an integrated spectra from sitelle, by measuring it outside of the filter range.
@@ -20,6 +20,7 @@ def estimate_noise(full_axis, full_spectrum, filter_lims, side='both'):
     else:
         raise ValueError(side)
     return np.std(noise)
+
 
 
 def gen_wavelength_header(h, axis, ax_num = 3):
@@ -140,11 +141,32 @@ def swap_header_axis(h, a0, a1):
                 h[k.replace(str(a0), str(a1))] = h.pop(k)
     return h
 
+# this is a very basic filter to remove stars position which are out of the image
+def filter_star_list(_star_list):
+    _star_list = np.copy(_star_list)
+    for istar in range(_star_list.shape[0]):
+        if (_star_list[istar,0] < 0
+            or _star_list[istar,0] > 2048
+            or _star_list[istar,1] < 0
+            or _star_list[istar,1] > 2064):
+            _star_list[istar,:] = np.nan
+    return _star_list
+def measure_dist(pos1,pos2):
+    return np.sqrt((pos1[:,0] - pos2[:,0])**2+(pos1[:,1] - pos2[:,1])**2)
+def get_star_list(star_list_deg, im, hdr, dxmap, dymap):
+    #Star positions without dxdymaps
+    dxmap_null = np.copy(dxmap)
+    dxmap_null.fill(0.)
+    dymap_null = np.copy(dymap)
+    dymap_null.fill(0.)
+    star_list_pix1 = orb.utils.astrometry.world2pix(
+        hdr, im.shape[0], im.shape[1], np.copy(star_list_deg), dxmap_null, dymap_null)
+    star_list_pix1 = filter_star_list(star_list_pix1)
 
-def spectral_smooth(spectra ,p):
-    smoothed = spectra.copy()
-    for i in range(len(spectra)):
-        imin = max(0, i-p)
-        imax = min(len(spectra), i+p+1)
-        smoothed[i] = np.median(spectra[imin:imax])
-    return smoothed
+    #Star positions with dxdymaps
+    star_list_pix2 = orb.utils.astrometry.world2pix(
+        hdr, im.shape[0], im.shape[1], np.copy(star_list_deg), dxmap, dymap)
+
+    star_list_pix2 = filter_star_list(star_list_pix2)
+
+    return star_list_pix1, star_list_pix2
