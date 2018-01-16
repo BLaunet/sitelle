@@ -95,32 +95,32 @@ def parallel_apply_over_frames(func2d, cube, *args, **kwargs):
 
 
 
-def parallel_loop(func, iterator, *args, **kwargs):
-    job_server, ncpus = init_pp_server(multiprocessing.cpu_count(),silent=False)
-    it_list = list(iterator)
-    it_chunks = [it_chunk for it_chunk in np.array_split(it_list, ncpus)]
-
-    def helper(func, iterator, args, kwargs):
-        out = []
-        for i in iterator:
-            out.append(func(i, *args, **kwargs))
-        return out
-
-    modules = kwargs.pop('modules', tuple())
-    modules += ('import numpy as np',)
-
-    depfuncs = kwargs.pop('depfuncs', tuple())
-    depfuncs += (func,)
-    jobs = [job_server.submit(
-                helper,
-                args=(func, it_chunk, args, kwargs),
-                modules=(modules),
-                depfuncs=(depfuncs))
-                for it_chunk in it_chunks]
-
-    job_output = []
-    for job in jobs:
-        job_output.append(job())
-
-    close_pp_server(job_server)
-    return np.array(job_output).flatten()
+# def parallel_loop(func, iterator, *args, **kwargs):
+#     job_server, ncpus = init_pp_server(multiprocessing.cpu_count(),silent=False)
+#     it_list = list(iterator)
+#     it_chunks = [it_chunk for it_chunk in np.array_split(it_list, ncpus)]
+#
+#     def helper(func, iterator, args, kwargs):
+#         out = []
+#         for i in iterator:
+#             out.append(func(i, *args, **kwargs))
+#         return out
+#
+#     modules = kwargs.pop('modules', tuple())
+#     modules += ('import numpy as np',)
+#
+#     depfuncs = kwargs.pop('depfuncs', tuple())
+#     depfuncs += (func,)
+#     jobs = [job_server.submit(
+#                 helper,
+#                 args=(func, it_chunk, args, kwargs),
+#                 modules=(modules),
+#                 depfuncs=(depfuncs))
+#                 for it_chunk in it_chunks]
+#
+#     job_output = []
+#     for job in jobs:
+#         job_output.append(job())
+#
+#     close_pp_server(job_server)
+#     return np.array(job_output).flatten()
