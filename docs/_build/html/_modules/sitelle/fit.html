@@ -1,0 +1,259 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sitelle.fit &#8212; sitelle 0.1 documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sitelle.fit</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">orb.fit</span> <span class="k">import</span> <span class="n">Lines</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy.interpolate</span> <span class="k">import</span> <span class="n">UnivariateSpline</span>
+<span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="k">import</span> <span class="n">curve_fit</span>
+<span class="kn">from</span> <span class="nn">orcs.utils</span> <span class="k">import</span> <span class="n">fit_lines_in_spectrum</span>
+<span class="kn">from</span> <span class="nn">orb.utils.spectrum</span> <span class="k">import</span> <span class="n">line_shift</span>
+<span class="kn">import</span> <span class="nn">gvar</span>
+
+<div class="viewcode-block" id="sky_model_to_remove"><a class="viewcode-back" href="../../sitelle.html#sitelle.fit.sky_model_to_remove">[docs]</a><span class="k">def</span> <span class="nf">sky_model_to_remove</span><span class="p">(</span><span class="n">mean_spectrum</span><span class="p">,</span> <span class="n">axis</span><span class="p">,</span> <span class="n">sky_axis</span><span class="p">,</span> <span class="n">sky_model</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function shifts the velocity of a skymodel to match at best the skylines in a spectrum.</span>
+<span class="sd">    It returns the fitted vector, that shoukld be then subtracted from the original spectrum.</span>
+<span class="sd">    :param mean_spectrum: The spectrum containing skylines.</span>
+<span class="sd">    If it comes from an integrated region, pay attention to give the **mean** spectrum,</span>
+<span class="sd">    i.e divided by the number of integrated pixels</span>
+<span class="sd">    :param axis: Axis of the spectrum</span>
+<span class="sd">    :param sky_axis: axis on which the skymodel is known</span>
+<span class="sd">    :param skymodel: Sky spectrum to be fitted</span>
+<span class="sd">    :return: the shifted skymodel, to be removed</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="mf">299792.458</span>
+    <span class="n">axis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">axis</span><span class="p">)</span> <span class="c1">#This way, a velocity shift correspond to a constant</span>
+                                      <span class="c1">#wavenumber offset over the whole axis</span>
+    <span class="n">sky_axis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">sky_axis</span><span class="p">)</span>
+
+    <span class="n">sky_interpolator</span> <span class="o">=</span> <span class="n">UnivariateSpline</span><span class="p">(</span><span class="n">sky_axis</span><span class="p">,</span> <span class="n">sky_model</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">fit_vector</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">mean_spectrum</span><span class="p">)</span>
+    <span class="n">scale</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">mean_spectrum</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmedian</span><span class="p">(</span><span class="n">mean_spectrum</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">model</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+        <span class="n">shift</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">v</span><span class="o">/</span><span class="n">c</span><span class="p">)</span> <span class="c1"># minus sign because it&#39;s in wavenumber</span>
+        <span class="n">sky_shifted</span> <span class="o">=</span> <span class="n">sky_interpolator</span><span class="p">(</span><span class="n">axis</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">+</span><span class="n">shift</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">h</span> <span class="o">+</span> <span class="n">UnivariateSpline</span><span class="p">(</span><span class="n">axis</span><span class="p">,</span> <span class="n">sky_shifted</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">0</span><span class="p">)(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">popt</span><span class="p">,</span> <span class="n">pcov</span> <span class="o">=</span> <span class="n">curve_fit</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">axis</span><span class="p">,</span> <span class="n">mean_spectrum</span><span class="p">,</span> <span class="n">p0</span><span class="o">=</span><span class="p">[</span><span class="n">scale</span><span class="p">,</span><span class="o">-</span><span class="mf">75.</span><span class="p">])</span>
+    <span class="n">fit_vector</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">axis</span><span class="p">,</span> <span class="o">*</span><span class="n">popt</span><span class="p">)</span><span class="o">-</span><span class="n">popt</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">fit_vector</span></div>
+
+
+<div class="viewcode-block" id="parse_line_params"><a class="viewcode-back" href="../../sitelle.html#sitelle.fit.parse_line_params">[docs]</a><span class="k">def</span> <span class="nf">parse_line_params</span><span class="p">(</span><span class="n">rest_lines</span><span class="p">,</span> <span class="n">fit</span><span class="p">,</span> <span class="n">error</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">wavenumber</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parse the fitted parameters to display them as a nice pandas DataFrame</span>
+<span class="sd">    :param rest_lines: Name or position of the lines at rest</span>
+<span class="sd">    :param fit: the &#39;fit_params&#39; in the output of a fit from orcs</span>
+<span class="sd">    :param error: if True, the errors are also parsed (Default = True)</span>
+<span class="sd">    :param wavenumber: if True, output is in wavenumber (else in wavelength). Default = True</span>
+<span class="sd">    :return lines_df: a pandas Dataframe containing all information about the fitted lines</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1">#Potential names</span>
+    <span class="n">lines_cm1</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">iline</span> <span class="ow">in</span> <span class="n">rest_lines</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">iline</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">iline</span> <span class="o">=</span> <span class="n">Lines</span><span class="p">()</span><span class="o">.</span><span class="n">get_line_cm1</span><span class="p">(</span><span class="n">iline</span><span class="p">)</span>
+        <span class="n">lines_cm1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">iline</span><span class="p">)</span>
+    <span class="n">lines_cm1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lines_cm1</span><span class="p">)</span>
+
+    <span class="n">lines_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">lines_cm1</span><span class="p">)):</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">names</span><span class="p">:</span>
+            <span class="n">line</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">rest_lines</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">line</span><span class="p">[</span><span class="s1">&#39;rest_pos&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">lines_cm1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="n">line</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">],</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;amp&#39;</span><span class="p">],</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;pos&#39;</span><span class="p">],</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;fwhm&#39;</span><span class="p">],</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;sigma&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fit</span><span class="p">[</span><span class="s1">&#39;lines_params&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">line</span><span class="p">[</span><span class="s1">&#39;velocity&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fit</span><span class="p">[</span><span class="s1">&#39;velocity&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">line</span><span class="p">[</span><span class="s1">&#39;snr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fit</span><span class="p">[</span><span class="s1">&#39;snr&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">line</span><span class="p">[</span><span class="s1">&#39;flux&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fit</span><span class="p">[</span><span class="s1">&#39;flux&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">line</span><span class="p">[</span><span class="s1">&#39;broadening&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fit</span><span class="p">[</span><span class="s1">&#39;broadening&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">error</span><span class="p">:</span>
+            <span class="n">line</span><span class="p">[</span><span class="s1">&#39;height_err&#39;</span><span class="p">],</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;amp_err&#39;</span><span class="p">],</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;pos_err&#39;</span><span class="p">],</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;fwhm_err&#39;</span><span class="p">],</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;sigma_err&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fit</span><span class="p">[</span><span class="s1">&#39;lines_params_err&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">line</span><span class="p">[</span><span class="s1">&#39;velocity_err&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fit</span><span class="p">[</span><span class="s1">&#39;velocity_err&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">line</span><span class="p">[</span><span class="s1">&#39;broadening_err&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fit</span><span class="p">[</span><span class="s1">&#39;broadening_err&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">lines_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+    <span class="n">lines_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">lines_list</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">wavenumber</span><span class="p">:</span>
+        <span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;pos&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1e8</span><span class="o">/</span><span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;pos&#39;</span><span class="p">]</span>
+        <span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;rest_pos&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1e8</span><span class="o">/</span><span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;rest_pos&#39;</span><span class="p">]</span>
+        <span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;sigma&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;sigma&#39;</span><span class="p">]</span><span class="o">*</span><span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;pos&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mf">1e8</span>
+        <span class="k">if</span> <span class="n">error</span><span class="p">:</span>
+            <span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;pos_err&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;pos_err&#39;</span><span class="p">]</span><span class="o">*</span><span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;pos&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mf">1e8</span>
+            <span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;sigma_err&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;sigma_err&#39;</span><span class="p">]</span><span class="o">*</span><span class="n">lines_df</span><span class="p">[</span><span class="s1">&#39;pos&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mf">1e8</span>
+    <span class="k">return</span> <span class="n">lines_df</span></div>
+
+<div class="viewcode-block" id="chi2_func"><a class="viewcode-back" href="../../sitelle.html#sitelle.fit.chi2_func">[docs]</a><span class="k">def</span> <span class="nf">chi2_func</span><span class="p">(</span><span class="n">axis</span><span class="p">,</span> <span class="n">spectrum</span><span class="p">,</span> <span class="n">fit_params</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes a chi square only around fitted lines</span>
+<span class="sd">    :param axis: axis of the spectrum</span>
+<span class="sd">    :param spectrum: spectrum on whoch the fit has been performed</span>
+<span class="sd">    :param fit_params: fit parameters containing information about the lines (output from an orcs fit)</span>
+<span class="sd">    :param delta: delta around line peak that should be used to compute the chi2. Default = 8</span>
+<span class="sd">    :return chi2: a chi square value, computed only around +- sigma * fwhm each line</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1">#We keep only indices around the fitted lines</span>
+    <span class="n">indices_to_keep</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">line</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">fit_params</span><span class="p">[</span><span class="s1">&#39;fitted_models&#39;</span><span class="p">][</span><span class="s1">&#39;Cm1LinesModel&#39;</span><span class="p">]):</span>
+        <span class="c1">#indices_to_keep.append(np.argwhere(np.abs(line)&gt;=line.std()/2)[:,0])</span>
+        <span class="n">peak_id</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+        <span class="n">fwhm_pix</span> <span class="o">=</span> <span class="n">fit_params</span><span class="p">[</span><span class="s1">&#39;lines_params&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">3</span><span class="p">]</span><span class="o">/</span><span class="p">(</span><span class="n">axis</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">axis</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">imin</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">peak_id</span><span class="o">-</span><span class="n">delta</span><span class="o">*</span><span class="n">fwhm_pix</span><span class="p">)))</span>
+        <span class="n">imax</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">spectrum</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">peak_id</span><span class="o">+</span><span class="n">delta</span><span class="o">*</span><span class="n">fwhm_pix</span><span class="p">)))</span>
+        <span class="n">indices_to_keep</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">imin</span><span class="p">,</span><span class="n">imax</span><span class="p">))</span>
+    <span class="n">to_keep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">indices_to_keep</span><span class="p">))</span>
+    <span class="n">sigma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">spectrum</span><span class="p">)</span>
+    <span class="n">residual</span> <span class="o">=</span> <span class="p">(</span><span class="n">spectrum</span><span class="o">-</span><span class="n">fit_params</span><span class="p">[</span><span class="s1">&#39;fitted_vector&#39;</span><span class="p">])[</span><span class="n">to_keep</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">residual</span><span class="o">/</span><span class="n">sigma</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="remove_OH_line"><a class="viewcode-back" href="../../sitelle.html#sitelle.fit.remove_OH_line">[docs]</a><span class="k">def</span> <span class="nf">remove_OH_line</span><span class="p">(</span><span class="n">spectrum</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">cube</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function used to remove the strange Halpha line around -400km/s (probably OH line).</span>
+<span class="sd">    To be used with care, especially when there is a real Halpha signal there.</span>
+<span class="sd">    :param spectrum: the spectrum to fit</span>
+<span class="sd">    :param theta: theta value corresponding to the spectrum</span>
+<span class="sd">    :param cube: Spectral cube instance from which the spctrum is taken</span>
+<span class="sd">    :return: the spectrium whithout this line (hopefully)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Halpha&#39;</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="s1">&#39;fmodel&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;fmodel&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;sinc&#39;</span>
+    <span class="k">if</span> <span class="s1">&#39;pos_def&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;pos_def&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;1&#39;</span>
+    <span class="c1"># if &#39;sigma_cov&#39; not in kwargs:</span>
+    <span class="c1">#     kwargs[&#39;sigma_cov&#39;] = [gvar.gvar(30, 10)]</span>
+    <span class="c1"># if &#39;sigma_def&#39; not in kwargs:</span>
+    <span class="c1">#     kwargs[&#39;sigma_def&#39;] = [&#39;1&#39;]</span>
+
+    <span class="n">cube</span><span class="o">.</span><span class="n">_prepare_input_params</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">inputparams</span> <span class="o">=</span> <span class="n">cube</span><span class="o">.</span><span class="n">inputparams</span><span class="o">.</span><span class="n">convert</span><span class="p">()</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">cube</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">convert</span><span class="p">()</span>
+    <span class="n">V_range</span>  <span class="o">=</span> <span class="p">[</span><span class="n">gvar</span><span class="o">.</span><span class="n">gvar</span><span class="p">(</span><span class="o">-</span><span class="mi">400</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span>
+    <span class="n">snr_guess</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="n">fit</span> <span class="o">=</span> <span class="n">fit_gas_lines</span><span class="p">([</span><span class="n">spectrum</span><span class="p">,</span> <span class="n">theta</span><span class="p">],</span> <span class="n">inputparams</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">V_range</span><span class="p">,</span> <span class="n">snr_guess</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">spectrum</span> <span class="o">-</span> <span class="n">fit</span><span class="p">[</span><span class="s1">&#39;line_spectra&#39;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="fit_gas_lines"><a class="viewcode-back" href="../../sitelle.html#sitelle.fit.fit_gas_lines">[docs]</a><span class="k">def</span> <span class="nf">fit_gas_lines</span><span class="p">(</span><span class="n">z_dim</span><span class="p">,</span> <span class="n">inputparams</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">V_range</span><span class="p">,</span> <span class="n">snr_guess</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function fit lines in a given spectrum.</span>
+<span class="sd">    :param z_dim: 2D-array. z_dim[0] contains the spectrum to fit, z_dim[1] contains theta, the incident angle at which the spectrum was recorded</span>
+<span class="sd">    :param inputparams: output from cube._prepare_input_params()</span>
+<span class="sd">    :param params: cube.params.convert()</span>
+<span class="sd">    :param lines: name of the lines to fit  (understanble by ORCS)</span>
+<span class="sd">    :param V_range: the range of velocity to test</span>
+<span class="sd">    :param snr_guess: snr_guess (Default = None)</span>
+<span class="sd">    :return out: a cube containing at each cell a dict with &#39;line_spectra&#39;: the fitted line spectra,</span>
+<span class="sd">    &#39;fit_params&#39;: the fitetd parameters of the lines,</span>
+<span class="sd">    &#39;chi2&#39;: chi2 list, each elemen,t corresponds to a velocity in V_range</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">spectrum</span> <span class="o">=</span> <span class="n">z_dim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="n">z_dim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">chi2_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">spectra_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">params_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">line_spectra</span><span class="p">,</span> <span class="n">fit_params</span><span class="p">,</span> <span class="n">chi2</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">V_range</span><span class="p">:</span>
+        <span class="n">fit</span> <span class="o">=</span> <span class="n">fit_lines_in_spectrum</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">inputparams</span><span class="p">,</span> <span class="mf">1e10</span><span class="p">,</span> <span class="n">spectrum</span><span class="p">,</span>
+                              <span class="n">theta</span><span class="p">,</span> <span class="n">pos_cov</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">snr_guess</span><span class="o">=</span><span class="n">snr_guess</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">fit</span> <span class="o">!=</span> <span class="p">[]:</span>
+            <span class="n">hChi2</span> <span class="o">=</span> <span class="n">chi2_func</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;base_axis&#39;</span><span class="p">],</span> <span class="n">spectrum</span><span class="p">,</span> <span class="n">fit</span><span class="p">)</span>
+            <span class="n">chi2_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hChi2</span><span class="p">)</span>
+            <span class="n">spectra_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">fit</span><span class="p">[</span><span class="s1">&#39;fitted_models&#39;</span><span class="p">][</span><span class="s1">&#39;Cm1LinesModel&#39;</span><span class="p">],</span> <span class="mi">0</span><span class="p">))</span>
+            <span class="n">params_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">parse_line_params</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span><span class="n">fit</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">silent</span><span class="p">:</span>
+                <span class="nb">print</span> <span class="s1">&#39;Init V = &#39;</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="s1">&#39;Fitted V = &#39;</span><span class="p">,</span> <span class="n">fit</span><span class="p">[</span><span class="s1">&#39;velocity&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;Chi2 = &#39;</span><span class="p">,</span> <span class="n">hChi2</span>
+    <span class="k">if</span> <span class="n">chi2_list</span> <span class="o">!=</span> <span class="nb">list</span><span class="p">():</span>
+        <span class="n">imin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">chi2_list</span><span class="p">)</span>
+        <span class="n">chi2</span> <span class="o">=</span> <span class="n">chi2_list</span><span class="p">[</span><span class="n">imin</span><span class="p">]</span><span class="c1">#{&#39;chi2&#39;: chi2_list, &#39;v&#39;: V_range[imin]}</span>
+        <span class="n">line_spectra</span> <span class="o">=</span> <span class="n">spectra_list</span><span class="p">[</span><span class="n">imin</span><span class="p">]</span>
+        <span class="n">fit_params</span> <span class="o">=</span> <span class="n">params_list</span><span class="p">[</span><span class="n">imin</span><span class="p">]</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;line_spectra&#39;</span><span class="p">:</span><span class="n">line_spectra</span><span class="p">,</span> <span class="s1">&#39;fit_params&#39;</span><span class="p">:</span><span class="n">fit_params</span><span class="p">,</span> <span class="s1">&#39;chi2&#39;</span><span class="p">:</span><span class="n">chi2</span><span class="p">}</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, Barthélémy Launet.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
