@@ -1,6 +1,14 @@
-*
+.*
+*.pyc
+/*
+
+!*.py
 
 !.gitignore
-!*.py
+
 !sitelle
+
 !scripts
+scripts/AnneLaure/*
+
+!docs
