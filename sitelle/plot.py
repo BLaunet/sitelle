@@ -75,7 +75,7 @@ def plot_map(data, ax=None, region=None, projection=None,
     :param projection: a WCS projection to plot the map on
     :param colorbar: if True (non default), a color bar is associated to the plot
     :param pmin: (Optional) if passed, vmin set to np.nanpercentile(data, pmin)
-    :param pmax: (Optional) if passed, vmin set to np.nanpercentile(data, pmin)
+    :param pmax: (Optional) if passed, vmax set to np.nanpercentile(data, pmax)
     :param kwargs: kwargs passed to imshow() function (e.g vmin, cmap etc..)
     """
     if ax is None: #No ax has been given : we have to create a new one
@@ -130,6 +130,17 @@ def plot_map(data, ax=None, region=None, projection=None,
     return fig, ax
 
 def plot_scatter(x,y,ax=None, **kwargs):
+    """
+    Helper function to plot scattered data
+    :param x: x coordinates
+    :param y: y coordinates
+    :param ax: the matplotlib ax on which to plot. If None, a new one is created
+    :param label: (Optional) labels of the data
+    :param color: (Default 'red') color of the markers
+    :param marker: (Default '+') Marker to use
+    :param **kwargs: any keyword argument accepted by plt.scatter()
+    :return fig, ax:
+    """
     if ax is None: #No ax has been given : we have to create a new one
         fig,ax = plt.subplots()
     else:
@@ -142,23 +153,23 @@ def plot_scatter(x,y,ax=None, **kwargs):
     if label is not None:
         ax.legend()
     return fig, ax
-def plot_spectra(axis, spectra, ax=None, wavenumber=True, **kwargs):
+def plot_spectra(axis, spectrum, ax=None, wavenumber=True, **kwargs):
     """
-    Helper function to plot spectra
-    :param args: args accepted by plt.plot()
-                e.g : plot(ax1, spec1, 'r', ax2, spec2, 'g')
-    :param label: list of labels of same size as number of plots
-    :param vlines: list of vertical lines x position
-    :param annotations: list of annonations to add to the plot. Each annotation should be a tuple (text, position)
-    :param legendloc: keyword to locate the lmegend (default = 'best')
-    :param ax: ax where to plot
+    Helper function to plot a spectrum
+    :param axis: the spectrum axis
+    :param spectrum: the spectrum itself
+    :param label: (Optional) label of the plot
+    :param wavenumber: (Default True) if the axis is in wavenumber ([cm-1]) or wavelength ([Angstroms])
+    :param ax: ax where to plot. if none, a new one is created
+    :param kwargs: Any kwargs accepted by plt.plot()
+
     """
     if ax is None: #No ax has been given : we have to create a new one
         fig,ax = plt.subplots()
     else:
         fig = ax.get_figure()
     label = kwargs.pop('label', None)
-    ax.plot(axis, spectra, label = label, **kwargs)
+    ax.plot(axis, spectrum, label = label, **kwargs)
     if label is not None:
         ax.legend()
 
@@ -169,6 +180,15 @@ def plot_spectra(axis, spectra, ax=None, wavenumber=True, **kwargs):
     return fig, ax
 
 def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, **kwargs):
+    """
+    Helper function to plot an histogram.
+    Especially helpful when dealing with 2d values (map) containing NaN (they are excluded from the analysis)
+    :param map: the data from which the histogram is taken
+    :param ax: ax where to plot. If None, a new one is created
+    :param pmin: (Optional) if passed, data is cut to np.nanpercentile(map, pmin)
+    :param pmax: (Optional) if passed, vmin set to np.nanpercentile(map, pmax)
+    :param kwargs: Any kwargs accepted by np.histogram
+    """
     _map = np.copy(map)
     if type(map) is np.ma.MaskedArray:
         _map = _map[~map.mask]
@@ -194,6 +214,13 @@ def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, **kwargs):
     return f,ax
 
 def plot_sources(sources, ax, **kwargs):
+    """
+    Helper function to plot sources nicely over a map
+    WARNING : sources should respect astropy convention : x and y reversed
+    :param sources: a Pandas Dataframe containing at least columns 'xcentroid' and 'ycentroid'
+    :param ax: the ax on which to plot (should be containing the map on top of which we are going to plot the sources)
+    :param kwargs: any kwargs accepted by CircularAperture.plot
+    """
     f = ax.get_figure()
     positions=(sources['ycentroid'], sources['xcentroid'])
     apertures = CircularAperture(positions, r=4.)

@@ -23,6 +23,11 @@ def parameter_map(table, param, binMap):
     return f(binMap)
 
 def read(filename):
+    """
+    Reads results from NBurst
+    :param filename: the file to read
+    :return: the bin_table, the fit_table
+    """
     hdu = fits.open(filename)
     bin_table = hdu[1].data
     fit_table = hdu[2].data
@@ -30,11 +35,24 @@ def read(filename):
     return bin_table, fit_table
 
 def extract_spectrum(fit_table, binNumber):
+    """
+    Get the fitted spectrum from a fit8table at a given binNumber
+    :param fit_table: the fit_table containg the results
+    :param binNumber: the binNumber
+    :return: the wavelength axis (in Angstroms) and fitted spectrum
+    """
     axis = fit_table['WAVE'][binNumber,:]
     fit = fit_table['FIT'][binNumber,:]
     return axis,fit
 
 def sew_spectra(left, right):
+    """
+    Sew 2 spectra fitter together.
+    In between, we put a mean value for data & fwhm, and 10x the worst error for the error
+    :prama left: left spectra fitter
+    :param right: right spectra fitter
+    :return: a NburstFitter instance containing the 2 spectra
+    """
     if left.spectra.shape[:-1] != right.spectra.shape[:-1]:
         raise ValueError('Left and right spectra should have the same spatial dimension. Got %s and %s'%(left.spectra.shape[:-1],right.spectra.shape[:-1]))
 
@@ -81,8 +99,7 @@ def sew_spectra(left, right):
 class NburstFitter():
     """
     This class is a helper to fit spectra with Nburst directly from python.
-    It stores data as expected by Nburst, configure a script with user-defined parameters and runs it.
-
+    It stores data as expected by Nburst, configure a script with user-defined parameters, runs it and reads the results.
 
     """
 
@@ -164,6 +181,14 @@ class NburstFitter():
 
     @classmethod
     def from_sitelle_region(cls, region, ORCS_cube, filedir, prefix, force = False):
+        """
+        Generate the right parameters to generate a Nburst fittable cube from a region in a SITELLE datacube
+        :param region: the region to study
+        :param ORCS_cube: SpectralSuce instance
+        :param filedir: the file directory where to store the cube
+        :param prefix: prefix of this cube
+        :param force: (Default False) : force top overwrite an already existing cube with the same name
+        """
         axis, spec = ORCS_cube.extract_integrated_spectrum(region)
         error = estimate_noise(axis, spec, ORCS_cube.get_filter_range())
         fwhm = ORCS_cube.get_fwhm_map()[region].mean()

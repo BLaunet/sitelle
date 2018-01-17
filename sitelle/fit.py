@@ -11,13 +11,13 @@ def sky_model_to_remove(mean_spectrum, axis, sky_axis, sky_model):
     """
     This function shifts the velocity of a skymodel to match at best the skylines in a spectrum.
     It returns the fitted vector, that shoukld be then subtracted from the original spectrum.
-    :param mean_spectrum: The spectrum containing skylines. If it comes from an
-                            integrated region, pay attention to give the **mean** spectrum,
-                            i.e divided by the number of integrated pixels
+    :param mean_spectrum: The spectrum containing skylines.
+    If it comes from an integrated region, pay attention to give the **mean** spectrum,
+    i.e divided by the number of integrated pixels
     :param axis: Axis of the spectrum
     :param sky_axis: axis on which the skymodel is known
     :param skymodel: Sky spectrum to be fitted
-    :return fit_vector: the shifted skymodel, to be removed
+    :return: the shifted skymodel, to be removed
     """
     c = 299792.458
     axis = np.log10(axis) #This way, a velocity shift correspond to a constant
@@ -110,6 +110,14 @@ def chi2_func(axis, spectrum, fit_params, delta=8):
     return np.sum(np.square(residual/sigma))
 
 def remove_OH_line(spectrum, theta, cube, **kwargs):
+    """
+    Function used to remove the strange Halpha line around -400km/s (probably OH line).
+    To be used with care, especially when there is a real Halpha signal there.
+    :param spectrum: the spectrum to fit
+    :param theta: theta value corresponding to the spectrum
+    :param cube: Spectral cube instance from which the spctrum is taken
+    :return: the spectrium whithout this line (hopefully)
+    """
     lines = ['Halpha']
 
     if 'fmodel' not in kwargs:
@@ -140,8 +148,8 @@ def fit_gas_lines(z_dim, inputparams, params, lines, V_range, snr_guess = None, 
     :param V_range: the range of velocity to test
     :param snr_guess: snr_guess (Default = None)
     :return out: a cube containing at each cell a dict with 'line_spectra': the fitted line spectra,
-                'fit_params': the fitetd parameters of the lines,
-                'chi2': chi2 list, each elemen,t corresponds to a velocity in V_range
+    'fit_params': the fitetd parameters of the lines,
+    'chi2': chi2 list, each elemen,t corresponds to a velocity in V_range
     """
     spectrum = z_dim[0]
     theta = z_dim[1]

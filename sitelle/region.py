@@ -27,6 +27,13 @@ def square_region(x, y, b):
     mask[x:x+b, y:y+b] = 1
     return np.where(mask == 1)
 def centered_square_region(x,y,b):
+    """
+    Computes a square region of size b*b centered on x,y
+    :param x: abscisse of the center of the square
+    :param y: ordonate of the center of the square
+    :param b: size of the square
+    :return region:
+    """
     mask = np.zeros((2048, 2064))
     if b%2 == 0:
         xmin, xmax = x-b/2, x+b/2

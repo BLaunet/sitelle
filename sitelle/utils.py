@@ -24,6 +24,13 @@ def estimate_noise(full_axis, full_spectrum, filter_lims, side='both'):
 
 
 def gen_wavelength_header(h, axis, ax_num = 3):
+    """
+    Generates a FITS wavelength header in Ansgtroms
+    :param h: the header to update
+    :param axis: the regular wavelength axis (numpy array or list)
+    :param ax_num: (Default 3) The axis number to use in the header
+    :return: the updated header
+    """
     h['NAXIS%d'%ax_num] = len(axis)
     h['CRPIX%d'%ax_num] = 1
     h['CRVAL%d'%ax_num] = axis[0]
@@ -33,6 +40,12 @@ def gen_wavelength_header(h, axis, ax_num = 3):
     return h
 
 def read_wavelength_axis(header, axis):
+    """
+    Generates the right wavelength axis from a FITS header
+    :param header: the header to consider
+    :param axis: the number of the axis on which the wavelength axis is stored in the header
+    :return: a numpy array describing the waveklength axis
+    """
     offset = 1-header['CRPIX'+str(axis)]
     grid =  np.arange(offset,header['NAXIS'+str(axis)] + offset)*header['CDELT'+str(axis)]
     return header['CRVAL'+str(axis)] + grid
@@ -141,8 +154,13 @@ def swap_header_axis(h, a0, a1):
                 h[k.replace(str(a0), str(a1))] = h.pop(k)
     return h
 
-# this is a very basic filter to remove stars position which are out of the image
 def filter_star_list(_star_list):
+    """
+    Very basic filter to remove stars position which are out of the image.
+    Hard coded to an image of 2048*2064 pix
+    :param _star_list: the list of XY pixel coordinates
+    :return: the filtered list
+    """
     _star_list = np.copy(_star_list)
     for istar in range(_star_list.shape[0]):
         if (_star_list[istar,0] < 0
@@ -152,8 +170,24 @@ def filter_star_list(_star_list):
             _star_list[istar,:] = np.nan
     return _star_list
 def measure_dist(pos1,pos2):
+    """
+    Measure the distance (norm 2) between two positions, in units of the position
+    :param pos1: the first position
+    :param pos2: the second position
+    :return: the distance (norm 2)
+    """
     return np.sqrt((pos1[:,0] - pos2[:,0])**2+(pos1[:,1] - pos2[:,1])**2)
 def get_star_list(star_list_deg, im, hdr, dxmap, dymap):
+    """
+    Computes the pixel positions of a list of positions in degrees.
+    :param star_list_deg: a 2d array of object positions, in degree
+    :param im: the image on which this objects are supposed to be
+    :param hdr: the header of this image
+    :param dxmap: the dxmap correction to apply
+    :param dymap: the dymap correction to apply
+    :return: two lists of pixel poition : one that includes dxdymaps in the copmputation, one that doesn't
+    
+    """
     #Star positions without dxdymaps
     dxmap_null = np.copy(dxmap)
     dxmap_null.fill(0.)
