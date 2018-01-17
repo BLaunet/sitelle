@@ -1,0 +1,160 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sitelle package &#8212; sitelle 0.1 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Welcome to sitelle’s documentation!" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="sitelle-package">
+<h1>sitelle package<a class="headerlink" href="#sitelle-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-sitelle.fit">
+<span id="sitelle-fit-module"></span><h2>sitelle.fit module<a class="headerlink" href="#module-sitelle.fit" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="sitelle.fit.chi2_func">
+<code class="descclassname">sitelle.fit.</code><code class="descname">chi2_func</code><span class="sig-paren">(</span><em>axis</em>, <em>spectrum</em>, <em>fit_params</em>, <em>delta=8</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sitelle/fit.html#chi2_func"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sitelle.fit.chi2_func" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes a chi square only around fitted lines
+:param axis: axis of the spectrum
+:param spectrum: spectrum on whoch the fit has been performed
+:param fit_params: fit parameters containing information about the lines (output from an orcs fit)
+:param delta: delta around line peak that should be used to compute the chi2. Default = 8
+:return chi2: a chi square value, computed only around +- sigma * fwhm each line</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sitelle.fit.fit_gas_lines">
+<code class="descclassname">sitelle.fit.</code><code class="descname">fit_gas_lines</code><span class="sig-paren">(</span><em>z_dim</em>, <em>inputparams</em>, <em>params</em>, <em>lines</em>, <em>V_range</em>, <em>snr_guess=None</em>, <em>silent=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sitelle/fit.html#fit_gas_lines"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sitelle.fit.fit_gas_lines" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function fit lines in a given spectrum.
+:param z_dim: 2D-array. z_dim[0] contains the spectrum to fit, z_dim[1] contains theta, the incident angle at which the spectrum was recorded
+:param inputparams: output from cube._prepare_input_params()
+:param params: cube.params.convert()
+:param lines: name of the lines to fit  (understanble by ORCS)
+:param V_range: the range of velocity to test
+:param snr_guess: snr_guess (Default = None)
+:return out: a cube containing at each cell a dict with ‘line_spectra’: the fitted line spectra,
+‘fit_params’: the fitetd parameters of the lines,
+‘chi2’: chi2 list, each elemen,t corresponds to a velocity in V_range</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sitelle.fit.parse_line_params">
+<code class="descclassname">sitelle.fit.</code><code class="descname">parse_line_params</code><span class="sig-paren">(</span><em>rest_lines</em>, <em>fit</em>, <em>error=True</em>, <em>wavenumber=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sitelle/fit.html#parse_line_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sitelle.fit.parse_line_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parse the fitted parameters to display them as a nice pandas DataFrame
+:param rest_lines: Name or position of the lines at rest
+:param fit: the ‘fit_params’ in the output of a fit from orcs
+:param error: if True, the errors are also parsed (Default = True)
+:param wavenumber: if True, output is in wavenumber (else in wavelength). Default = True
+:return lines_df: a pandas Dataframe containing all information about the fitted lines</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sitelle.fit.remove_OH_line">
+<code class="descclassname">sitelle.fit.</code><code class="descname">remove_OH_line</code><span class="sig-paren">(</span><em>spectrum</em>, <em>theta</em>, <em>cube</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sitelle/fit.html#remove_OH_line"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sitelle.fit.remove_OH_line" title="Permalink to this definition">¶</a></dt>
+<dd><p>Function used to remove the strange Halpha line around -400km/s (probably OH line).
+To be used with care, especially when there is a real Halpha signal there.
+:param spectrum: the spectrum to fit
+:param theta: theta value corresponding to the spectrum
+:param cube: Spectral cube instance from which the spctrum is taken
+:return: the spectrium whithout this line (hopefully)</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sitelle.fit.sky_model_to_remove">
+<code class="descclassname">sitelle.fit.</code><code class="descname">sky_model_to_remove</code><span class="sig-paren">(</span><em>mean_spectrum</em>, <em>axis</em>, <em>sky_axis</em>, <em>sky_model</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sitelle/fit.html#sky_model_to_remove"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sitelle.fit.sky_model_to_remove" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function shifts the velocity of a skymodel to match at best the skylines in a spectrum.
+It returns the fitted vector, that shoukld be then subtracted from the original spectrum.
+:param mean_spectrum: The spectrum containing skylines.
+If it comes from an integrated region, pay attention to give the <strong>mean</strong> spectrum,
+i.e divided by the number of integrated pixels
+:param axis: Axis of the spectrum
+:param sky_axis: axis on which the skymodel is known
+:param skymodel: Sky spectrum to be fitted
+:return: the shifted skymodel, to be removed</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-sitelle">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-sitelle" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Welcome to sitelle’s documentation!</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, Barthélémy Launet.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/sitelle.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
