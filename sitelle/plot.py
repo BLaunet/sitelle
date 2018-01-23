@@ -166,17 +166,20 @@ def plot_spectra(axis, spectrum, ax=None, wavenumber=True, **kwargs):
     """
     if ax is None: #No ax has been given : we have to create a new one
         fig,ax = plt.subplots()
+        build_ax = True
     else:
         fig = ax.get_figure()
+        build_ax = False
     label = kwargs.pop('label', None)
     ax.plot(axis, spectrum, label = label, **kwargs)
     if label is not None:
         ax.legend()
-
-    if wavenumber:
-        make_wavenumber_axes(ax)
-    else:
-        make_wavelength_axes(ax)
+        
+    if build_ax:
+        if wavenumber:
+            make_wavenumber_axes(ax)
+        else:
+            make_wavelength_axes(ax)
     return fig, ax
 
 def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, **kwargs):
