@@ -13,16 +13,20 @@ def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
     """
     job_server, ncpus = init_pp_server(multiprocessing.cpu_count(),silent=False)
 
+    axis_to_split_on = (axis + 1 )% 3
+    if arr.shape[axis_to_split_on] < ncpus:
+        ncpus = arr.shape[axis_to_split_on]
+
     chunks = [(func1d, axis, sub_arr, args, kwargs)
-              for sub_arr in np.array_split(arr, ncpus, axis=((axis + 1 )% 3))]
+              for sub_arr in np.array_split(arr, ncpus, axis=axis_to_split_on)]
 
     def helper(func1d, axis, arr, args, kwargs):
         return np.apply_along_axis(func1d, axis, arr, *args, **kwargs)
 
-    modules = kwargs.pop('modules', tuple())
+    modules = tuple(kwargs.pop('modules', tuple()))
     modules += ('import numpy as np',)
 
-    depfuncs = kwargs.pop('depfuncs', tuple())
+    depfuncs = tuple(kwargs.pop('depfuncs', tuple()))
     depfuncs += (func1d,)
     jobs = [job_server.submit(
                 helper,
@@ -64,12 +68,10 @@ def parallel_apply_over_frames(func2d, cube, *args, **kwargs):
     def helper(func2d, cube, args, kwargs):
         #We have to determine dimension of what is returned
         res0 = np.array(func2d(cube[:,:,0], *args, **kwargs))
-        return cube
-        # return res0.shape
-        # res_cube = np.zeros((res0.shape + (cube.shape[-1], )))
-        # for i in range(1,(cube.shape[-1])):
-        #     res_cube[...,i] = func2d(cube[:,:,i], *args, **kwargs)
-        # return res_cube
+        res_cube = np.zeros((res0.shape + (cube.shape[-1], )))
+        for i in range(1,(cube.shape[-1])):
+            res_cube[...,i] = func2d(cube[:,:,i], *args, **kwargs)
+        return res_cube
 
     modules = kwargs.pop('modules', tuple())
     modules += ('import numpy as np',)
@@ -85,7 +87,6 @@ def parallel_apply_over_frames(func2d, cube, *args, **kwargs):
 
     job_output = [job() for job in jobs]
     close_pp_server(job_server)
-    return job_output
     try:
         return np.concatenate(job_output, axis=-1)
     except Exception as e:
