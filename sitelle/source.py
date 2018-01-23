@@ -8,6 +8,7 @@ from orb.astrometry import Astrometry
 from astropy.convolution import Gaussian2DKernel
 from astropy.table import Table
 from orb.utils import vector
+from numbers import Number
 
 def filter_sources(sources, annulus):
     x,y = sources['ycentroid'], sources['xcentroid']
@@ -27,12 +28,18 @@ def extract_max_frame(x,y, spectral_cube, id_max_detection_frame):
     :param id_max_detection_frame: the id of the max frame, or the detection_pos_frame
     :return: a cutout of the sum of the frames around the max of detection
     """
-    if type(id_max_detection_frame) == int:
-        iframe = id_max_detection_frame
-    elif type(id_max_detection_frame) == np.ndarray:
-        iframe = int(id_max_detection_frame[x,y])
+    if isinstance(id_max_detection_frame, Number):
+        iframe = int(id_max_detection_frame)
     else:
         raise TypeError('Non valid type for id_max_detection_frame : %s'%type(id_max_detection_frame))
+    # else:
+    #     try:
+    #         if id_max_detection_frame.shape == (spectral_cube.dimx, spectral_cube.dimy):
+    #             iframe = int(id_max_detection_frame[x,y])
+    #         else:
+    #             raise ValueError('Invalid shape for the detection_frame : %s. Cube shape : %s'%(id_max_detection_frame.shape,(spectral_cube.dimx, spectral_cube.dimy)))
+    #     except AttributeError as e:
+    #         raise TypeError('Non valid type for id_max_detection_frame : %s'%type(id_max_detection_frame))
     data = spectral_cube.get_data(x-10, x+11, y-10,y+11, iframe-2,iframe+3)
     return np.sum(data, axis=2)
 
@@ -55,7 +62,7 @@ def extract_point_source(xy, cube, small_bin=3, big_bin = 30):
     a,s, n = cube.extract_integrated_spectrum(small_box, silent=True, return_spec_nb = True)
     return a, s-n*bkg_spec
 
-def check_source(x,y, spectral_cube, detection_pos_frame=None, smooth_factor = None):
+def check_source(x,y, spectral_cube, frame=None, smooth_factor = None):
     """
     Helper function to quickly look at a source
     We extract the source at positon (x,y) with extract_point_source and plot the resulting spectra.
@@ -63,23 +70,38 @@ def check_source(x,y, spectral_cube, detection_pos_frame=None, smooth_factor = N
     :param x: abscissa of the source
     :param y: ordinate of the source
     :param spectral_cube: SpectralCube instance where we look at the source
-    :param detection_pos_frame: (Optional) If passed, we are going to extract the max frame to plot the detection on top if it. If None, we use the deep_frame
+    :param frame: (Optional) Frame to plot the detection on. If None, the deep_frame is used.
+    If frame is a 2d array, we plot in this. If frame in as index, we plot on the sum of the frames around this index in the cube
     :param smooth_factor: (Optional) Factor used to smooth the spectrum
     """
     a,s = extract_point_source((x,y), spectral_cube)
     if smooth_factor is not None:
         s = vector.smooth(s, smooth_factor)
     f = plot_spectra(a,s)
-    if detection_pos_frame is not None:
-        f,ax = plot_map(extract_max_frame(x,y, spectral_cube, detection_pos_frame))
-        ax.scatter(10,10, marker='+', color='red')
-        wl = 1e8/spectral_cube.params.base_axis[int(detection_pos_frame[x,y])]
-        ax.set_title('Frame at %.1f Angstroms'%wl)
-
+    if frame is not None:
+        if isinstance(frame, Number):
+            f,ax = plot_map(extract_max_frame(x,y, spectral_cube, frame))
+            wl = 1e8/a[int(frame)]
+            ax.set_title('Frame at %.1f Angstroms'%wl)
+        else:
+            try:
+                if frame.shape == (spectral_cube.dimx, spectral_cube.dimy):
+                    f,ax = plot_map(frame[x-10:x+11, y-10:y+11])
+                else:
+                    raise ValueError('Invalid shape for the frame : %s. Cube shape : %s'%(frame.shape,(spectral_cube.dimx, spectral_cube.dimy)))
+            except:
+                raise TypeError('Non valid type for frame : %s'%type(frame))
     else:
         f,ax = plot_map(spectral_cube.get_deep_frame()[x-10:x+11, y-10:y+11])
-        ax.scatter(10,10, marker='+', color='red')
-
+    ax.scatter(10,10, marker='+', color='red')
+    # else:
+    #     try:
+    #         if id_max_detection_frame.shape == (spectral_cube.dimx, spectral_cube.dimy):
+    #             iframe = int(id_max_detection_frame[x,y])
+    #         else:
+    #             raise ValueError('Invalid shape for the detection_frame : %s. Cube shape : %s'%(id_max_detection_frame.shape,(spectral_cube.dimx, spectral_cube.dimy)))
+    #     except AttributeError as e:
+    #         raise TypeError('Non valid type for id_max_detection_frame : %s'%type(id_max_detection_frame))
 def measure_coherence(source, detection_pos_frame):
     """
     Coherence is a measure of the credibility of a source as an emission line source.
