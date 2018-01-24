@@ -137,12 +137,11 @@ def measure_source_fwhm(detection, data, rmax=10):
 def get_sources(detection_frame, mask=False, sigma = 5.0, mode='DAO', fwhm = 2.5, threshold = None):
     if mask is False:
         mask = np.ones_like(detection_frame)
-    mean, median, std = sigma_clipped_stats(detection_frame, sigma=3.0, iters=5,
-                                        mask=~mask.astype(bool) )#On masque la region hors de l'anneau
-    #On detecte sur toute la frame, mais on garde que ce qui est effectivement dans l'anneau
     if threshold is None:
+        mean, median, std = sigma_clipped_stats(detection_frame, sigma=3.0, iters=5,
+                                        mask=~mask.astype(bool) )#On masque la region hors de l'anneau
         threshold = median+sigma*std
-
+    #On detecte sur toute la frame, mais on garde que ce qui est effectivement dans l'anneau
     if mode == 'DAO':
         daofind = DAOStarFinder(fwhm=fwhm, threshold=threshold)
         sources = daofind(detection_frame)
