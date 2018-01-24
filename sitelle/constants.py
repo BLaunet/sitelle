@@ -12,3 +12,5 @@ if 'johannes' in socket.gethostname() or 'tycho' in socket.gethostname():
     FITS_DIR = Path('/data/blaunet/fits/')
 if 'lp-alm-stg' in socket.gethostname():
     FITS_DIR = Path('/Users/blaunet/Documents/M31/fits')
+if 'celeste' in socket.gethostname():
+    FITS_DIR = Path('/home/blaunet/fits')
