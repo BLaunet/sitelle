@@ -75,6 +75,9 @@ def check_source(x,y, spectral_cube, frame=None, smooth_factor = None):
     :param smooth_factor: (Optional) Factor used to smooth the spectrum
     """
     a,s = extract_point_source((x,y), spectral_cube)
+    imin, imax = np.searchsorted(spectral_cube.params.base_axis, spectral_cube.get_filter_range())
+    a = a[imin:imax]
+    s = s[imin:imax]
     if smooth_factor is not None:
         s = vector.smooth(s, smooth_factor)
     f = plot_spectra(a,s)
