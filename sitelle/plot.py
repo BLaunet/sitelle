@@ -236,6 +236,13 @@ def plot_sources(sources, ax, **kwargs):
 
 class Interactive1DPlotter:
     def __init__(self, axes, cube_axis, cube, *args, **kwargs):
+        """
+        :param axes: matplotlib axes where to plot
+        :param cube_axis: the physical z axis of the cube
+        :param cube: the 3D data
+        :param args: args passed to plt.plot()
+        :param kwargs: kwargs passed to plt.plot()
+        """
         self.axes = axes
         self.cube_axis = cube_axis
         self.cube = cube
