@@ -1,6 +1,8 @@
 import multiprocessing
 import numpy as np
 from orb.utils.parallel import init_pp_server, close_pp_server
+import pandas as pd
+import dill
 
 def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
     """
@@ -93,7 +95,49 @@ def parallel_apply_over_frames(func2d, cube, *args, **kwargs):
         print 'Could not concatenate'
         return job_output
 
+def parallel_apply_over_df(df, func, axis=1, broadcast=False, raw=False, reduce=None, args=(),  **kwargs):
+    """
+    Iterates over a pandas Dataframe to apply a function on each line,
+    taking advantage of multiple cores.
+    Arguments are the same as pd.DataFrame.apply()
+    :param df: the dataframe
+    :param func: the function to apply to each line (should take a pandas Series as input)
+    :param modules: modules to be imported so that the function works correctly. Example : 'import numpy as np'
+    :param depfuncs: functions used by the main function but defined outside of its body
+    :param args: arguments to be passed to func
+    :param kwargs: keyword arguments to be passed to func
+    """
+    modules = kwargs.pop('modules', tuple())
+    modules += ('import numpy as np','import pandas as pd')
 
+    depfuncs = kwargs.pop('depfuncs', tuple())
+    depfuncs += (func,)
+
+    job_server, ncpus = init_pp_server(multiprocessing.cpu_count(),silent=False)
+    if df.shape[0]<ncpus:
+        ncpus=df.shape[0]
+    chunks = [ (dill.dumps(df[i::ncpus]), func, axis, broadcast,
+                raw, reduce, args, kwargs) for i in xrange(ncpus) ]
+
+    def helper(df, func, axis, broadcast, raw, reduce, args, kwargs):
+        import dill
+        df = dill.loads(df)
+        return df.apply(func, axis, broadcast, raw, reduce, args=args, **kwargs)
+
+    jobs = [job_server.submit(
+                helper,
+                args=(c),
+                modules=(modules),
+                depfuncs=(depfuncs))
+                for c in chunks]
+
+    job_output = [job() for job in jobs]
+    close_pp_server(job_server)
+    try:
+        return pd.concat(job_output).sort_index()
+    except Exception as e:
+        print 'Could not concatenate'
+        return job_output
 
 
 # def parallel_loop(func, iterator, *args, **kwargs):
