@@ -4,9 +4,12 @@ import numpy as np
 from scipy.interpolate import UnivariateSpline
 from scipy.optimize import curve_fit
 from orcs.utils import fit_lines_in_spectrum
-from orb.utils.spectrum import line_shift
+from orb.utils.spectrum import line_shift, compute_radial_velocity
 import gvar
-
+from sitelle.region import centered_square_region
+import logging
+from sitelle.source import extract_point_source
+from sitelle import constants
 def sky_model_to_remove(mean_spectrum, axis, sky_axis, sky_model):
     """
     This function shifts the velocity of a skymodel to match at best the skylines in a spectrum.
@@ -35,7 +38,6 @@ def sky_model_to_remove(mean_spectrum, axis, sky_axis, sky_model):
     popt, pcov = curve_fit(model, axis, mean_spectrum, p0=[scale,-75.])
     fit_vector = model(axis, *popt)-popt[0]
     return fit_vector
-
 
 def parse_line_params(rest_lines, fit, error = True, wavenumber = True):
     """
@@ -173,3 +175,86 @@ def fit_gas_lines(z_dim, inputparams, params, lines, V_range, snr_guess = None, 
         line_spectra = spectra_list[imin]
         fit_params = params_list[imin]
     return {'line_spectra':line_spectra, 'fit_params':fit_params, 'chi2':chi2}
+
+def guess_line_velocity(max_pos, v_min, v_max, filter='SN2', debug=False):
+    """
+    From a line position, we estimate the velocity shift
+    """
+    if debug:
+        logging.info('Max line position : %.2f'%max_pos)
+    if filter =='SN2':
+        lines = ['Hbeta', '[OIII]5007', '[OIII]4959']
+    elif filter == 'SN3':
+        lines = ['[NII]6548','[NII]6583', 'Halpha', '[SII]6716', '[SII]6731']
+    else:
+        raise NotImplementedError()
+
+    while True:
+        rest_lines = np.atleast_1d(Lines().get_line_cm1(lines))
+        #We find the nearest line
+        idx = (np.abs(rest_lines-max_pos)).argmin()
+
+        #We compute the corresponding velocity shift
+        v_guess = compute_radial_velocity(max_pos, rest_lines[idx], wavenumber=True)
+        if debug:
+            logging.info('Guessed line : %s'%lines[idx])
+            logging.info('Velocity : %.2f'%v_guess)
+        if not (v_min <= v_guess <= v_max):
+            lines.remove(lines[idx])
+            if lines != []:
+                continue
+            else:
+                v_guess = None
+                break
+        else:
+            break
+    return v_guess
+
+def guess_source_velocity(spectrum, cube, v_min = -800., v_max = 50., debug=False):
+    imin, imax = np.searchsorted(cube.params.base_axis, cube.get_filter_range())
+    max_pos = cube.params.base_axis[imin:imax][np.nanargmax(spectrum[imin:imax])]
+    return guess_line_velocity(max_pos, v_min, v_max, filter=cube.params.filter_name, debug=debug)
+
+def fit_spectrum(spec, theta, v_guess, cube, **kwargs):
+    if cube.params.filter_name =='SN2':
+        lines = constants.SN2_LINES
+    elif cube.params.filter_name == 'SN3':
+        lines = constants.SN3_LINES
+    else:
+        raise NotImplementedError()
+
+    # if 'fmodel' not in kwargs:
+    #     kwargs['fmodel'] = 'sincgauss'
+    # if 'sigma_cov' not in kwargs:
+    #     kwargs['sigma_cov'] = [gvar.gvar(10, 30)]
+    # if 'sigma_def' not in kwargs:
+    #     kwargs['sigma_def'] = ['1']
+
+    if 'fmodel' not in kwargs:
+        kwargs['fmodel'] = 'sinc'
+    if 'pos_def' not in kwargs:
+        kwargs['pos_def']='1'
+
+    kwargs.update({'signal_range':cube.get_filter_range()})
+    kwargs.update({'pos_cov':v_guess})
+    cube._prepare_input_params(lines, nofilter=True, **kwargs)
+    inputparams = cube.inputparams.convert()
+    params = cube.params.convert()
+    return fit_lines_in_spectrum(params, inputparams, 1e10, spec, theta, snr_guess='auto', debug=True)
+
+def fit_source(xpos, ypos, cube, v_guess = None, return_v_guess=False, v_min=-800., v_max=100., **kwargs):
+    xpos = int(xpos)
+    ypos = int(ypos)
+    a,s = extract_point_source(xpos, ypos, cube)
+    if v_guess is None:
+        v_guess = guess_source_velocity(s, cube, v_min = v_min, v_max = v_max)
+    if v_guess != None:
+        small_box = centered_square_region(xpos, ypos, 3)
+        theta_orig = np.nanmean(cube.get_theta_map()[small_box])
+        fit_params = fit_spectrum(s, theta_orig, v_guess, cube, **kwargs)
+        if return_v_guess:
+            return [v_guess, fit_params]
+        else:
+            return fit_params
+    else:
+        return []
