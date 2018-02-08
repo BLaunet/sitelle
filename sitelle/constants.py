@@ -14,3 +14,6 @@ if 'lp-alm-stg' in socket.gethostname():
     FITS_DIR = Path('/Users/blaunet/Documents/M31/fits')
 if 'celeste' in socket.gethostname():
     FITS_DIR = Path('/home/blaunet/fits')
+
+SN2_LINES = ['Hbeta', '[OIII]4959', '[OIII]5007']
+SN3_LINES = ['[NII]6548', 'Halpha','[NII]6583', '[SII]6716', '[SII]6731']
