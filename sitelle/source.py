@@ -9,6 +9,7 @@ from astropy.convolution import Gaussian2DKernel
 from astropy.table import Table
 from orb.utils import vector
 from numbers import Number
+from orcs.utils import fit_lines_in_spectrum
 
 def filter_sources(sources, annulus):
     x,y = sources['ycentroid'], sources['xcentroid']
@@ -42,23 +43,27 @@ def extract_max_frame(x,y, spectral_cube, id_max_detection_frame):
     #         raise TypeError('Non valid type for id_max_detection_frame : %s'%type(id_max_detection_frame))
     data = spectral_cube.get_data(x-10, x+11, y-10,y+11, iframe-2,iframe+3)
     return np.sum(data, axis=2)
+def estimate_local_background(x,y,cube, small_bin = 3, big_bin = 30):
+    big_box = centered_square_region(x,y, b=big_bin)
+    small_box = centered_square_region(x,y, b=small_bin)
+    mask = np.zeros((cube.dimx, cube.dimy))
+    mask[big_box]=1
+    mask[small_box]=0
+    _, bkg_spec = cube.extract_integrated_spectrum(np.nonzero(mask), median=True, mean_flux=True, silent=True)
+    return bkg_spec
 
-def extract_point_source(xy, cube, small_bin=3, big_bin = 30):
+def extract_point_source(x,y, cube, small_bin=3, big_bin = 30):
     """
     Basic way to extract a point source spectra with the local background subtracted.
     For a given position xy, we sum the spectra extracted in a squared region of size small_bin**2 centered on xy,
     and subtract from it the median spectra from a squared region of size big_bin**2 centered on xy excluding the central area
     :param xy: tuple of the position
     :param cube: the SpectralCube in which we extract the spectra
-    :param small_bin: (Dafault 3) the binsize of the region of extraction of the source
+    :param small_bin: (Default 3) the binsize of the region of extraction of the source
     :param big_bin: (Default 30) the binsize of the region of extraction of the background
     """
-    big_box = centered_square_region(*xy, b=big_bin)
-    small_box = centered_square_region(*xy, b=small_bin)
-    mask = np.zeros((cube.dimx, cube.dimy))
-    mask[big_box]=1
-    mask[small_box]=0
-    _, bkg_spec = cube.extract_integrated_spectrum(np.nonzero(mask), median=True, mean_flux=True, silent=True)
+    small_box = centered_square_region(x,y, b=small_bin)
+    bkg_spec = estimate_local_background(x,y, cube, small_bin, big_bin)
     a,s, n = cube.extract_integrated_spectrum(small_box, silent=True, return_spec_nb = True)
     return a, s-n*bkg_spec
 
@@ -74,13 +79,14 @@ def check_source(x,y, spectral_cube, frame=None, smooth_factor = None):
     If frame is a 2d array, we plot in this. If frame in as index, we plot on the sum of the frames around this index in the cube
     :param smooth_factor: (Optional) Factor used to smooth the spectrum
     """
-    a,s = extract_point_source((x,y), spectral_cube)
-    imin, imax = np.searchsorted(spectral_cube.params.base_axis, spectral_cube.get_filter_range())
-    a = a[imin:imax]
-    s = s[imin:imax]
+    a,s = extract_point_source(x,y, spectral_cube)
+    # imin, imax = np.searchsorted(spectral_cube.params.base_axis, spectral_cube.get_filter_range())
+    # a = a[imin:imax]
+    # s = s[imin:imax]
     if smooth_factor is not None:
         s = vector.smooth(s, smooth_factor)
-    f = plot_spectra(a,s)
+    f, ax = plot_spectra(a,s)
+    ax.set_xlim(spectral_cube.get_filter_range())
     if frame is not None:
         if isinstance(frame, Number):
             f,ax = plot_map(extract_max_frame(x,y, spectral_cube, frame))
@@ -157,7 +163,7 @@ def get_sources(detection_frame, mask=False, sigma = 5.0, mode='DAO', fwhm = 2.5
         sources.rename_column('y_peak', 'ycentroid')
     elif mode == 'ORB':
         astro = Astrometry(detection_frame, instrument='sitelle')
-        path, fwhm_arc = astro.detect_stars(min_star_number=5000, r_max_coeff=1. )
+        path, fwhm_arc = astro.detect_stars(min_star_number=5000, r_max_coeff=1., filter_image=False)
         star_list = astro.load_star_list(path)
         sources = Table([star_list[:,0], star_list[:,1]], names=('ycentroid', 'xcentroid'))
     elif mode == 'SEGM':
@@ -165,9 +171,8 @@ def get_sources(detection_frame, mask=False, sigma = 5.0, mode='DAO', fwhm = 2.5
         s = fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
         kernel = Gaussian2DKernel(s, x_size=3, y_size=3)
         kernel.normalize()
-
-        segm = detect_sources(detection_frame, threshold, npixels=7,
-                              filter_kernel=kernel)
+        kernel = None
+        segm = detect_sources(detection_frame, threshold, npixels=4, filter_kernel=kernel)
         def get_xy(bbox):
             xslice, yslice = bbox
             x = xslice.start + (xslice.stop - xslice.start -1)/2.
@@ -187,3 +192,9 @@ def get_sources(detection_frame, mask=False, sigma = 5.0, mode='DAO', fwhm = 2.5
     if 'id' in df:
         df.pop('id')
     return df
+
+#
+# def fit_source(x,y,cube, lines, lines_kwargs, params, inputparams):
+#     a,s = extract_point_source(x,y,cube)
+#     fit = fit_lines_in_spectrum(params, inputparams, 1e10, spectrum,
+#                           theta, pos_cov=v, snr_guess=snr_guess)
