@@ -17,7 +17,7 @@ class SpectralCubePatch(SpectralCube):
             return np.flip(np.array([1e8/l for l in lims]), 0)
 
 
-    def _extract_spectra_from_region(self, region, silent=False):
+    def _extract_spectra_from_region(self, region, silent=False, return_theta=False):
 
         def _interpolate_spectrum(spec, corr, wavenumber, step, order, base_axis):
             if wavenumber:
@@ -57,6 +57,8 @@ class SpectralCubePatch(SpectralCube):
                 calibration_coeff_map[ii, ij],
                 self.params.wavenumber, self.params.step, self.params.order,
                 self.params.base_axis)
+            theta = self.get_theta_map()[ii,ij]
+            data = data.reshape(1,1,self.dimz)
 
         else:
             mask_x_proj = np.nanmax(mask, axis=1).astype(float)
@@ -140,7 +142,12 @@ class SpectralCubePatch(SpectralCube):
                             progress.update(k)
                 if not silent: progress.end()
 
-        return data
+            data = data.reshape(x_max-x_min, y_max-y_min, self.dimz)
+            theta = self.get_theta_map()[x_min:x_max, y_min:y_max]
+        if return_theta:
+            return data, theta
+        else:
+            return data
 
     def _extract_spectrum_from_region(self, region,
                                       subtract_spectrum=None,
