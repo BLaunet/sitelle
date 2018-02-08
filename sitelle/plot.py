@@ -3,7 +3,8 @@ import numpy as np
 import matplotlib.patches as patches
 from orb.fit import Lines
 from photutils import CircularAperture
-
+from orb.utils.spectrum import line_shift
+from sitelle.constants import SN2_LINES, SN3_LINES
 def customize_axes(axes, **kwargs):
     for k,v in kwargs.items():
         try:
@@ -42,27 +43,40 @@ def lines_pos(lines_name, v, wavenumber=False):
     else:
         return [1e8/(wn*(1-v/3e5)) for wn in Lines().get_line_cm1(lines_name)]
 
-def add_lines_label(ax, filter, velocity, wavenumber=False,offset=15):
+def add_lines_label(ax, filter, velocity, wavenumber=True,offset=15):
     if type(velocity) != tuple and type(velocity) != list:
         velocity = [velocity]
     xmin, xmax = ax.get_xlim()
     ymin, ymax = ax.get_ylim()
     if filter == 'SN2':
-        lines_names = ['Hbeta','[OIII]4959', '[OIII]5007']
+        lines_names = SN2_LINES
     elif filter == 'SN3':
-        lines_names = ['[NII]6548', 'Halpha', '[NII]6583', '[SII]6716', '[SII]6731']
-    pos = lines_pos(lines_names, velocity[0], wavenumber)
-
+        lines_names = SN3_LINES
+    rest_lines = Lines().get_line_cm1(lines_names)
+    pos = rest_lines + line_shift(velocity[0], rest_lines, wavenumber)
     for i, name in enumerate(lines_names) :
-        #ax.annotate(name, ((pos[i]-offset-xmin)/(xmax-xmin), 0.99), xycoords='axes fraction', rotation=90.)
+        # ax.annotate(name, ((pos[i]-offset-xmin)/(xmax-xmin), 0.99), xycoords='axes fraction', rotation=90.)
         ax.annotate(name, (pos[i]-offset, 0.99*ymax), rotation=90.,  annotation_clip = False)
         #ax.text((pos-10-xmin)/(xmax-xmin), 0.94, name, rotation = 45.)
 
         color = iter(['k', 'r', 'g'])
         for v in velocity:
-            ax.axvline(lines_pos(lines_names, v, wavenumber)[i], ymin=0.95, c=next(color), ls='-', lw=1.)
+            pos_v = rest_lines + line_shift(v, rest_lines, wavenumber)
+            ax.axvline(pos_v[i], ymin=0.95, c=next(color), ls='-', lw=1.)
 
 ## Plot a 2D map
+from mpl_toolkits import axes_grid1
+
+def add_colorbar(im, ax, fig, aspect=20, pad_fraction=0.5, **kwargs):
+    """Add a vertical color bar to an image plot."""
+    divider = axes_grid1.make_axes_locatable(im.axes)
+    width = axes_grid1.axes_size.AxesY(im.axes, aspect=1./aspect)
+    pad = axes_grid1.axes_size.Fraction(pad_fraction, width)
+    current_ax = ax
+    cax = divider.append_axes("right", size=width, pad=pad)
+
+    return fig.colorbar(im, cax=cax, **kwargs)
+
 def plot_map(data, ax=None, region=None, projection=None,
                 colorbar=False,
                 xlims=None, ylims=None,
@@ -124,7 +138,8 @@ def plot_map(data, ax=None, region=None, projection=None,
             mask[region] = True
             ax.contour(mask.T, 1, colors='r')
     if colorbar:
-        fig.colorbar(im)
+        #   add_colorbar(im, ax, fig)
+        fig.colorbar(im, ax=ax)
     if projection:
         ax.grid()
     return fig, ax
