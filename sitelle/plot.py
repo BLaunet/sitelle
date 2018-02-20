@@ -197,7 +197,7 @@ def plot_spectra(axis, spectrum, ax=None, wavenumber=True, **kwargs):
             make_wavelength_axes(ax)
     return fig, ax
 
-def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, **kwargs):
+def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, step=False,**kwargs):
     """
     Helper function to plot an histogram.
     Especially helpful when dealing with 2d values (map) containing NaN (they are excluded from the analysis)
@@ -227,7 +227,10 @@ def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, **kwargs):
     h = np.histogram(_map[~np.isnan(_map)], **kwargs)
     X = h[1][:-1]
     Y = h[0]
-    ax.bar(h[1][:-1], h[0], align='edge', width = h[1][1]-h[1][0], log=log)
+    if step:
+        ax.step(X,Y, where='post')
+    else:
+        ax.bar(X, Y, align='edge', width = h[1][1]-h[1][0], log=log)
     ax.set_title('Median : %.2e, Std : %.2e'%(np.nanmedian(_map), np.nanstd(_map)))
     return f,ax
 
