@@ -1,15 +1,20 @@
 import numpy as np
 from sitelle.region import centered_square_region
 from sitelle.plot import *
-from photutils import CircularAperture, CircularAnnulus, EllipticalAperture, DAOStarFinder, IRAFStarFinder, find_peaks, detect_sources
+from photutils import CircularAperture, CircularAnnulus, EllipticalAperture
+from photutils import DAOStarFinder, IRAFStarFinder
+from photutils import find_peaks, detect_sources, deblend_sources, source_properties
 from scipy.interpolate import UnivariateSpline
 from astropy.stats import sigma_clipped_stats
 from orb.astrometry import Astrometry
-from astropy.convolution import Gaussian2DKernel
+from astropy.convolution import Gaussian2DKernel, Box2DKernel
 from astropy.table import Table
 from orb.utils import vector
 from numbers import Number
 from orcs.utils import fit_lines_in_spectrum
+from astropy.units.quantity import Quantity
+import warnings
+import logging
 
 def mask_sources(sources, annulus):
     x,y = sources['ycentroid'], sources['xcentroid']
@@ -33,16 +38,9 @@ def extract_max_frame(x,y, spectral_cube, id_max_detection_frame):
         iframe = int(id_max_detection_frame)
     else:
         raise TypeError('Non valid type for id_max_detection_frame : %s'%type(id_max_detection_frame))
-    # else:
-    #     try:
-    #         if id_max_detection_frame.shape == (spectral_cube.dimx, spectral_cube.dimy):
-    #             iframe = int(id_max_detection_frame[x,y])
-    #         else:
-    #             raise ValueError('Invalid shape for the detection_frame : %s. Cube shape : %s'%(id_max_detection_frame.shape,(spectral_cube.dimx, spectral_cube.dimy)))
-    #     except AttributeError as e:
-    #         raise TypeError('Non valid type for id_max_detection_frame : %s'%type(id_max_detection_frame))
     data = spectral_cube.get_data(x-10, x+11, y-10,y+11, iframe-2,iframe+3)
     return np.sum(data, axis=2)
+
 def estimate_local_background(x,y,cube, small_bin = 3, big_bin = 30):
     big_box = centered_square_region(x,y, b=big_bin)
     small_box = centered_square_region(x,y, b=small_bin)
@@ -80,9 +78,6 @@ def check_source(x,y, spectral_cube, frame=None, smooth_factor = None):
     :param smooth_factor: (Optional) Factor used to smooth the spectrum
     """
     a,s = extract_point_source(x,y, spectral_cube)
-    # imin, imax = np.searchsorted(spectral_cube.params.base_axis, spectral_cube.get_filter_range())
-    # a = a[imin:imax]
-    # s = s[imin:imax]
     if smooth_factor is not None:
         s = vector.smooth(s, smooth_factor)
     f, ax = plot_spectra(a,s)
@@ -103,14 +98,7 @@ def check_source(x,y, spectral_cube, frame=None, smooth_factor = None):
     else:
         f,ax = plot_map(spectral_cube.get_deep_frame()[x-10:x+11, y-10:y+11])
     ax.scatter(10,10, marker='+', color='red')
-    # else:
-    #     try:
-    #         if id_max_detection_frame.shape == (spectral_cube.dimx, spectral_cube.dimy):
-    #             iframe = int(id_max_detection_frame[x,y])
-    #         else:
-    #             raise ValueError('Invalid shape for the detection_frame : %s. Cube shape : %s'%(id_max_detection_frame.shape,(spectral_cube.dimx, spectral_cube.dimy)))
-    #     except AttributeError as e:
-    #         raise TypeError('Non valid type for id_max_detection_frame : %s'%type(id_max_detection_frame))
+
 def measure_coherence(source, detection_pos_frame):
     """
     Coherence is a measure of the credibility of a source as an emission line source.
@@ -137,7 +125,6 @@ def measure_source_fwhm(detection, data, rmax=10):
         flux = flux - flux.min()
         spline = UnivariateSpline(np.arange(rmax), flux-flux[0]/2., s=0)
         if spline.roots().shape != (1,):
-            #print spline.roots()
             return np.nan
         return spline.roots()[0]
     return (get_fwhm(photo_flux))
@@ -167,34 +154,31 @@ def get_sources(detection_frame, mask=False, sigma = 5.0, mode='DAO', fwhm = 2.5
         star_list = astro.load_star_list(path)
         sources = Table([star_list[:,0], star_list[:,1]], names=('ycentroid', 'xcentroid'))
     elif mode == 'SEGM':
-
-        s = fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
-        kernel = Gaussian2DKernel(s, x_size=3, y_size=3)
-        kernel.normalize()
-        kernel = None
-        segm = detect_sources(detection_frame, threshold, npixels=4, filter_kernel=kernel)
-        def get_xy(bbox):
-            xslice, yslice = bbox
-            x = xslice.start + (xslice.stop - xslice.start -1)/2.
-            y = yslice.start + (yslice.stop - yslice.start -1)/2.
-            return x,y
-        def get_positions(segm):
-            pos = np.zeros((len(segm.slices), 2))
-            for i, box in enumerate(segm.slices):
-                pos[i] = np.array(get_xy(box))
-            X = pos[:,0]
-            Y = pos[:,1]
-            return Table([Y, X], names=('xcentroid', 'ycentroid'))
-
-        sources = get_positions(segm)
-    sources = filter_sources(sources, mask) # On filtre
+        logging.debug('Detecting')
+        segm = detect_sources(detection_frame, threshold, npixels=4)
+        deblend = True
+        if deblend:
+            try:
+                logging.debug('Deblending')
+                # fwhm = 3.
+                # s = fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+                # kernel = Gaussian2DKernel(s, x_size = 3, y_size = 3)
+                # kernel = Box2DKernel(3, mode='integrate')
+                deblended = deblend_sources(detection_frame, segm, npixels=4)#, filter_kernel=kernel)
+            except ValueError as e:
+                warnings.warn('Deblend was not possible.\n %s'%e)
+                deblended = segm
+            logging.debug('Retieving properties')
+            sources = source_properties(detection_frame, deblended).to_table()
+        else:
+            logging.debug('Retieving properties')
+            sources = source_properties(detection_frame, segm).to_table()
+        logging.debug('Filtering Quantity columns')
+        for col in sources.colnames:
+            if type(sources[col]) is Quantity:
+                sources[col] = sources[col].value
+    sources = mask_sources(sources, mask) # On filtre
     df = sources.to_pandas()
     if 'id' in df:
-        df.pop('id')
+       df.pop('id')
     return df
-
-#
-# def fit_source(x,y,cube, lines, lines_kwargs, params, inputparams):
-#     a,s = extract_point_source(x,y,cube)
-#     fit = fit_lines_in_spectrum(params, inputparams, 1e10, spectrum,
-#                           theta, pos_cov=v, snr_guess=snr_guess)
