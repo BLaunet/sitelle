@@ -10,6 +10,11 @@ from sitelle.region import centered_square_region
 import logging
 from sitelle.source import extract_point_source
 from sitelle import constants
+from orb.utils.vector import smooth
+
+import matplotlib.pyplot as plt
+
+from sitelle.plot import *
 def sky_model_to_remove(mean_spectrum, axis, sky_axis, sky_model):
     """
     This function shifts the velocity of a skymodel to match at best the skylines in a spectrum.
@@ -183,9 +188,9 @@ def guess_line_velocity(max_pos, v_min, v_max, filter='SN2', debug=False):
     if debug:
         logging.info('Max line position : %.2f'%max_pos)
     if filter =='SN2':
-        lines = ['Hbeta', '[OIII]5007', '[OIII]4959']
+        lines = ['Hbeta', '[OIII]5007']
     elif filter == 'SN3':
-        lines = ['[NII]6548','[NII]6583', 'Halpha', '[SII]6716', '[SII]6731']
+        lines = ['[NII]6548','[NII]6583', 'Halpha']
     else:
         raise NotImplementedError()
 
@@ -234,13 +239,13 @@ def fit_spectrum(spec, theta, v_guess, cube, **kwargs):
         kwargs['fmodel'] = 'sinc'
     if 'pos_def' not in kwargs:
         kwargs['pos_def']='1'
-
+    snr_guess = kwargs.pop('snr_guess', 'auto')
     kwargs.update({'signal_range':cube.get_filter_range()})
     kwargs.update({'pos_cov':v_guess})
     cube._prepare_input_params(lines, nofilter=True, **kwargs)
     inputparams = cube.inputparams.convert()
     params = cube.params.convert()
-    return fit_lines_in_spectrum(params, inputparams, 1e10, spec, theta, snr_guess='auto', debug=True)
+    return fit_lines_in_spectrum(params, inputparams, 1e10, spec, theta, snr_guess=snr_guess, debug=False)
 
 def fit_source(xpos, ypos, cube, v_guess = None, return_v_guess=False, v_min=-800., v_max=100., **kwargs):
     xpos = int(xpos)
