@@ -11,7 +11,7 @@ from orb.utils import vector
 from numbers import Number
 from orcs.utils import fit_lines_in_spectrum
 
-def filter_sources(sources, annulus):
+def mask_sources(sources, annulus):
     x,y = sources['ycentroid'], sources['xcentroid']
     return sources[annulus[np.round(x).astype(int), np.round(y).astype(int)].astype(bool)]
 
