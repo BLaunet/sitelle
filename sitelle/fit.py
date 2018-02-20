@@ -263,3 +263,48 @@ def fit_source(xpos, ypos, cube, v_guess = None, return_v_guess=False, v_min=-80
             return fit_params
     else:
         return []
+
+
+def check_fit(source, SN2_ORCS, SN3_ORCS, SN2_detection_frame, SN3_detection_frame, **kwargs):
+    x_SN2, y_SN2 = map(int, source[['xpos_SN2', 'ypos_SN2']])
+    x_SN3, y_SN3 = map(int, source[['xpos_SN3', 'ypos_SN3']])
+    a_SN2,s_SN2 = extract_point_source(x_SN2, y_SN2,cube = SN2_ORCS)
+    a_SN3, s_SN3 = extract_point_source(x_SN3, y_SN3,cube = SN3_ORCS)
+    v_guess = guess_source_velocity(s_SN2, SN2_ORCS, debug=True, v_min = -1500.)
+    guess_source_velocity(s_SN3, SN3_ORCS, debug=True)
+    fit_SN2 = fit_source(x_SN2, y_SN2,cube = SN2_ORCS, v_guess = v_guess, **kwargs)
+    fit_SN3 = fit_source(x_SN3, y_SN3,cube = SN3_ORCS, v_guess =fit_SN2['velocity'][0], **kwargs)
+
+    f,ax = plt.subplots(1,2, figsize=(10,6), sharex=True, sharey=True)
+    plot_map(SN2_detection_frame, ax=ax[0], pmin=1, pmax=99)#, projection=SN2_ORCS.get_wcs())
+    ax[0].scatter(x_SN2, y_SN2, marker='x', c='r')
+    ax[0].set_xlim(x_SN2-20, x_SN2+21)
+    ax[0].set_ylim(y_SN2-20, y_SN2+21)
+
+    plot_map(SN3_detection_frame, ax=ax[1], pmin=1, pmax=99)#, projection=SN3_ORCS.get_wcs())
+    ax[1].scatter(x_SN3, y_SN3, marker='x', c='r')
+    ax[1].scatter(*map(int, source[['x_guess', 'y_guess']]), marker='x', c='blue')
+    ax[1].set_xlim(x_SN3-20, x_SN3+21)
+    ax[1].set_ylim(y_SN3-20, y_SN3+21)
+
+    f.tight_layout()
+    f,ax = plt.subplots(1,2, figsize=(10,6))
+    plot_spectra(a_SN2, s_SN2, ax=ax[0])
+    if fit_SN2 != []:
+        plot_spectra(a_SN2, fit_SN2['fitted_vector'], ax=ax[0])
+    ax[0].set_xlim(SN2_ORCS.get_filter_range())
+    make_wavenumber_axes(ax[0])
+    add_lines_label(ax[0], 'SN2', -300., wavenumber=True)
+
+    plot_spectra(a_SN3, s_SN3, ax=ax[1])
+    if fit_SN3 != []:
+        plot_spectra(a_SN3, fit_SN3['fitted_vector'], ax=ax[1])
+    ax[1].set_xlim(SN3_ORCS.get_filter_range())
+    make_wavenumber_axes(ax[1])
+    add_lines_label(ax[1], 'SN3', -300., wavenumber=True)
+
+    print 'SN2 fit velocity : %.2f +- %.2f'%(fit_SN2['velocity'][0], fit_SN2['velocity_err'][0])
+    print 'SN3 fit velocity : %.2f +- %.2f'%(fit_SN3['velocity'][0], fit_SN3['velocity_err'][0])
+
+    print source.filter(regex='detected')
+    return fit_SN2, fit_SN3
