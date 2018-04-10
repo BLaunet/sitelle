@@ -11,9 +11,9 @@ import logging
 from sitelle.source import extract_point_source
 from sitelle import constants
 from orb.utils.vector import smooth
-
+from astropy.stats import sigma_clipped_stats
 import matplotlib.pyplot as plt
-
+from sitelle.utils import stats_without_lines
 from sitelle.plot import *
 def sky_model_to_remove(mean_spectrum, axis, sky_axis, sky_model):
     """
@@ -335,14 +335,14 @@ def check_fit(source, SN2_ORCS, SN3_ORCS, SN2_detection_frame, SN3_detection_fra
     plot_spectra(a_SN2, s_SN2, ax=ax[0])
     if fit_SN2 != []:
         plot_spectra(a_SN2, fit_SN2['fitted_vector'], ax=ax[0])
-    ax[0].set_xlim(SN2_ORCS.get_filter_range())
+    ax[0].set_xlim(SN2_ORCS.params.filter_range)
     make_wavenumber_axes(ax[0])
     add_lines_label(ax[0], 'SN2', -300., wavenumber=True)
 
     plot_spectra(a_SN3, s_SN3, ax=ax[1])
     if fit_SN3 != []:
         plot_spectra(a_SN3, fit_SN3['fitted_vector'], ax=ax[1])
-    ax[1].set_xlim(SN3_ORCS.get_filter_range())
+    ax[1].set_xlim(SN3_ORCS.params.filter_range)
     make_wavenumber_axes(ax[1])
     add_lines_label(ax[1], 'SN3', -300., wavenumber=True)
 
