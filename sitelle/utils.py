@@ -186,7 +186,7 @@ def get_star_list(star_list_deg, im, hdr, dxmap, dymap):
     :param dxmap: the dxmap correction to apply
     :param dymap: the dymap correction to apply
     :return: two lists of pixel poition : one that includes dxdymaps in the copmputation, one that doesn't
-    
+
     """
     #Star positions without dxdymaps
     dxmap_null = np.copy(dxmap)
@@ -204,3 +204,17 @@ def get_star_list(star_list_deg, im, hdr, dxmap, dymap):
     star_list_pix2 = filter_star_list(star_list_pix2)
 
     return star_list_pix1, star_list_pix2
+
+def stats_without_lines(spec, cube_axis, lines, v_min, v_max):
+    """
+    Returns mean, median, std
+    """
+    from orb.utils.spectrum import line_shift
+    from orb.core import Lines
+    rest_lines = Lines().get_line_cm1(lines)
+    pos_min = rest_lines + line_shift(v_max, rest_lines, wavenumber=True)
+    pos_max = rest_lines + line_shift(v_min, rest_lines, wavenumber=True)
+    lines_lims = np.searchsorted(cube_axis, [pos_min, pos_max]).T
+    for lims in lines_lims:
+        spec = np.concatenate((spec[..., :lims[0]], spec[...,lims[1]:]), -1)
+    return np.nanmean(spec), np.nanmedian(spec), np.nanstd(spec)
