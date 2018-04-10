@@ -258,6 +258,16 @@ def refine_velocity_guess(spectrum, axis, v_guess, detected_line, return_fit = F
         return compute_radial_velocity(fit.mean_1,line_rest, wavenumber=True), fit
     else:
         return compute_radial_velocity(fit.mean_1,line_rest, wavenumber=True)
+
+def fit_spectrum(spec, theta, v_guess, cube, lines = None, **kwargs):
+    if lines is None:
+        if cube.params.filter_name =='SN2':
+            lines = constants.SN2_LINES
+        elif cube.params.filter_name == 'SN3':
+            lines = constants.SN3_LINES
+        else:
+            raise NotImplementedError()
+
     # if 'fmodel' not in kwargs:
     #     kwargs['fmodel'] = 'sincgauss'
     # if 'sigma_cov' not in kwargs:
@@ -269,10 +279,13 @@ def refine_velocity_guess(spectrum, axis, v_guess, detected_line, return_fit = F
         kwargs['fmodel'] = 'sinc'
     if 'pos_def' not in kwargs:
         kwargs['pos_def']='1'
+    if 'signal_range' not in kwargs:
+        kwargs['signal_range'] = cube.params.filter_range
+    if 'pos_cov' not in kwargs:
+        kwargs['pos_cov'] = v_guess
     snr_guess = kwargs.pop('snr_guess', 'auto')
-    kwargs.update({'signal_range':cube.get_filter_range()})
-    kwargs.update({'pos_cov':v_guess})
-    cube._prepare_input_params(lines, nofilter=True, **kwargs)
+    nofilter = kwargs.pop('nofilter', True)
+    cube._prepare_input_params(lines, nofilter=nofilter, **kwargs)
     inputparams = cube.inputparams.convert()
     params = cube.params.convert()
     return fit_lines_in_spectrum(params, inputparams, 1e10, spec, theta, snr_guess=snr_guess, debug=False)
