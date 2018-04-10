@@ -181,19 +181,14 @@ def fit_gas_lines(z_dim, inputparams, params, lines, V_range, snr_guess = None, 
         fit_params = params_list[imin]
     return {'line_spectra':line_spectra, 'fit_params':fit_params, 'chi2':chi2}
 
-def guess_line_velocity(max_pos, v_min, v_max, filter='SN2', debug=False):
+def guess_line_velocity(max_pos, v_min, v_max, lines = None,debug=False, return_line=False):
     """
     From a line position, we estimate the velocity shift
     """
     if debug:
         logging.info('Max line position : %.2f'%max_pos)
-    if filter =='SN2':
-        lines = ['Hbeta', '[OIII]5007']
-    elif filter == 'SN3':
-        lines = ['[NII]6548','[NII]6583', 'Halpha']
-    else:
-        raise NotImplementedError()
-
+    if lines is None:
+        return None
     while True:
         rest_lines = np.atleast_1d(Lines().get_line_cm1(lines))
         #We find the nearest line
@@ -213,20 +208,36 @@ def guess_line_velocity(max_pos, v_min, v_max, filter='SN2', debug=False):
                 break
         else:
             break
-    return v_guess
-
-def guess_source_velocity(spectrum, cube, v_min = -800., v_max = 50., debug=False):
-    imin, imax = np.searchsorted(cube.params.base_axis, cube.get_filter_range())
-    max_pos = cube.params.base_axis[imin:imax][np.nanargmax(spectrum[imin:imax])]
-    return guess_line_velocity(max_pos, v_min, v_max, filter=cube.params.filter_name, debug=debug)
-
-def fit_spectrum(spec, theta, v_guess, cube, **kwargs):
-    if cube.params.filter_name =='SN2':
-        lines = constants.SN2_LINES
-    elif cube.params.filter_name == 'SN3':
-        lines = constants.SN3_LINES
+    if return_line and lines != []:
+        return v_guess, lines[idx]
+    elif return_line and lines == []:
+        return v_guess, None
     else:
-        raise NotImplementedError()
+        return v_guess
+
+def guess_source_velocity(spectrum, cube, v_min = -800., v_max = 50., debug=False, lines = None, force=False, return_line = False):
+    if lines is None:
+        if cube.params.filter_name =='SN2':
+            lines = ['Hbeta', '[OIII]5007']
+        elif cube.params.filter_name == 'SN3':
+            lines = ['[NII]6583', 'Halpha']
+        else:
+            raise NotImplementedError()
+    if force is True:
+        #print ('Forced detection of velocity in the range [%.1f, %.1f] km/s'%(v_min, v_max))
+        line_pos = np.atleast_1d(Lines().get_line_cm1(lines))
+        pos_min = line_pos + line_shift(v_max, line_pos, wavenumber=True)
+        pos_max = line_pos + line_shift(v_min, line_pos, wavenumber=True)
+        pos_index = np.searchsorted(cube.params.base_axis, [pos_min, pos_max]).T
+
+        s = np.concatenate([spectrum[pos[0]:pos[1]] for pos in pos_index])
+        a = np.concatenate([cube.params.base_axis[pos[0]:pos[1]] for pos in pos_index])
+
+        max_pos = a[np.nanargmax(s)]
+    else:
+        imin, imax = np.searchsorted(cube.params.base_axis, cube.params.filter_range)
+        max_pos = cube.params.base_axis[imin+5:imax-5][np.nanargmax(spectrum[imin+5:imax-5])]
+    return guess_line_velocity(max_pos, v_min, v_max, debug=debug, lines=lines, return_line=return_line)
 
     # if 'fmodel' not in kwargs:
     #     kwargs['fmodel'] = 'sincgauss'
