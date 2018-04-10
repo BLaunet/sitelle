@@ -5,7 +5,9 @@ import orb
 import gvar
 import scipy.interpolate
 import warnings
-
+from sitelle.parallel import available_cpu_count
+from orb.utils.parallel import init_pp_server, close_pp_server
+from orcs.core import Filter
 
 class SpectralCubePatch(SpectralCube):
 
@@ -18,6 +20,7 @@ class SpectralCubePatch(SpectralCube):
 
 
     def _extract_spectra_from_region(self, region, silent=False, return_theta=False):
+
 
         def _interpolate_spectrum(spec, corr, wavenumber, step, order, base_axis):
             if wavenumber:
@@ -88,7 +91,8 @@ class SpectralCubePatch(SpectralCube):
             if parallel_extraction:
                 logging.debug('Parallel extraction')
                 # multi-processing server init
-                job_server, ncpus = self._init_pp_server(silent=silent)
+
+                job_server, ncpus = init_pp_server(available_cpu_count(), silent=silent)
                 if not silent: progress = orb.core.ProgressBar(x_max - x_min)
                 for ii in range(0, x_max - x_min, ncpus):
                     # no more jobs than columns
@@ -117,7 +121,7 @@ class SpectralCubePatch(SpectralCube):
 
                     if not silent:
                         progress.update(ii)
-                self._close_pp_server(job_server)
+                close_pp_server(job_server)
                 if not silent: progress.end()
 
             else:

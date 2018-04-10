@@ -5,6 +5,7 @@ from orb.fit import Lines
 from photutils import CircularAperture
 from orb.utils.spectrum import line_shift
 from sitelle.constants import SN2_LINES, SN3_LINES
+import scipy
 def customize_axes(axes, **kwargs):
     for k,v in kwargs.items():
         try:
@@ -43,7 +44,7 @@ def lines_pos(lines_name, v, wavenumber=False):
     else:
         return [1e8/(wn*(1-v/3e5)) for wn in Lines().get_line_cm1(lines_name)]
 
-def add_lines_label(ax, filter, velocity, wavenumber=True,offset=15):
+def add_lines_label(ax, filter, velocity, wavenumber=True,offset=15, **kwargs):
     if type(velocity) != tuple and type(velocity) != list:
         velocity = [velocity]
     xmin, xmax = ax.get_xlim()
@@ -56,13 +57,13 @@ def add_lines_label(ax, filter, velocity, wavenumber=True,offset=15):
     pos = rest_lines + line_shift(velocity[0], rest_lines, wavenumber)
     for i, name in enumerate(lines_names) :
         # ax.annotate(name, ((pos[i]-offset-xmin)/(xmax-xmin), 0.99), xycoords='axes fraction', rotation=90.)
-        ax.annotate(name, (pos[i]-offset, 0.99*ymax), rotation=90.,  annotation_clip = False)
+        ax.annotate(name, (pos[i]-offset, 0.99*ymax), rotation=90.,  annotation_clip = False, **kwargs)
         #ax.text((pos-10-xmin)/(xmax-xmin), 0.94, name, rotation = 45.)
 
         color = iter(['k', 'r', 'g'])
         for v in velocity:
             pos_v = rest_lines + line_shift(v, rest_lines, wavenumber)
-            ax.axvline(pos_v[i], ymin=0.95, c=next(color), ls='-', lw=1.)
+            ax.axvline(pos_v[i], ymin=0.97, c=next(color), ls='-', lw=1.)
 
 ## Plot a 2D map
 from mpl_toolkits import axes_grid1
@@ -197,7 +198,7 @@ def plot_spectra(axis, spectrum, ax=None, wavenumber=True, **kwargs):
             make_wavelength_axes(ax)
     return fig, ax
 
-def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, step=False,**kwargs):
+def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, step=True,**kwargs):
     """
     Helper function to plot an histogram.
     Especially helpful when dealing with 2d values (map) containing NaN (they are excluded from the analysis)
@@ -207,6 +208,7 @@ def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, step=False,**kw
     :param pmax: (Optional) if passed, vmin set to np.nanpercentile(map, pmax)
     :param kwargs: Any kwargs accepted by np.histogram
     """
+    label = kwargs.pop('label', None)
     _map = np.copy(map)
     if type(map) is np.ma.MaskedArray:
         _map = _map[~map.mask]
@@ -224,14 +226,20 @@ def plot_hist(map, ax=None, log = False, pmin = None, pmax=None, step=False,**kw
         max = np.nanmax(_map)
     _map[_map > max] = np.nan
     _map[_map < min] = np.nan
+    cumulative = kwargs.pop('cumulative', False)
     h = np.histogram(_map[~np.isnan(_map)], **kwargs)
     X = h[1][:-1]
-    Y = h[0]
-    if step:
-        ax.step(X,Y, where='post')
+    if cumulative:
+        Y=np.cumsum(h[0])
     else:
-        ax.bar(X, Y, align='edge', width = h[1][1]-h[1][0], log=log)
-    ax.set_title('Median : %.2e, Std : %.2e'%(np.nanmedian(_map), np.nanstd(_map)))
+        Y = h[0]
+    if step:
+        ax.step(X,Y, where='post', label=label)
+    else:
+        ax.bar(X, Y, align='edge', width = h[1][1]-h[1][0], log=log, label=label)
+    ax.set_title('Median : %.3f, Std : %.3f'%(np.nanmedian(_map), np.nanstd(_map)))
+    if label is not None:
+        ax.legend()
     return f,ax
 
 def plot_sources(sources, ax, **kwargs):

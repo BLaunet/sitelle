@@ -15,6 +15,7 @@ from orcs.utils import fit_lines_in_spectrum
 from astropy.units.quantity import Quantity
 import warnings
 import logging
+import pandas as pd
 
 def mask_sources(sources, annulus):
     x,y = sources['ycentroid'], sources['xcentroid']
@@ -40,7 +41,6 @@ def extract_max_frame(x,y, spectral_cube, id_max_detection_frame):
         raise TypeError('Non valid type for id_max_detection_frame : %s'%type(id_max_detection_frame))
     data = spectral_cube.get_data(x-10, x+11, y-10,y+11, iframe-2,iframe+3)
     return np.sum(data, axis=2)
-
 def estimate_local_background(x,y,cube, small_bin = 3, big_bin = 30):
     big_box = centered_square_region(x,y, b=big_bin)
     small_box = centered_square_region(x,y, b=small_bin)
@@ -50,7 +50,7 @@ def estimate_local_background(x,y,cube, small_bin = 3, big_bin = 30):
     _, bkg_spec = cube.extract_integrated_spectrum(np.nonzero(mask), median=True, mean_flux=True, silent=True)
     return bkg_spec
 
-def extract_point_source(x,y, cube, small_bin=3, big_bin = 30):
+def extract_point_source(x,y, cube, small_bin=3, medium_bin = None, big_bin = 30):
     """
     Basic way to extract a point source spectra with the local background subtracted.
     For a given position xy, we sum the spectra extracted in a squared region of size small_bin**2 centered on xy,
@@ -61,7 +61,9 @@ def extract_point_source(x,y, cube, small_bin=3, big_bin = 30):
     :param big_bin: (Default 30) the binsize of the region of extraction of the background
     """
     small_box = centered_square_region(x,y, b=small_bin)
-    bkg_spec = estimate_local_background(x,y, cube, small_bin, big_bin)
+    if medium_bin is None:
+        medium_bin = small_bin
+    bkg_spec = estimate_local_background(x,y, cube, medium_bin, big_bin)
     a,s, n = cube.extract_integrated_spectrum(small_box, silent=True, return_spec_nb = True)
     return a, s-n*bkg_spec
 
@@ -81,7 +83,7 @@ def check_source(x,y, spectral_cube, frame=None, smooth_factor = None):
     if smooth_factor is not None:
         s = vector.smooth(s, smooth_factor)
     f, ax = plot_spectra(a,s)
-    ax.set_xlim(spectral_cube.get_filter_range())
+    ax.set_xlim(spectral_cube.params.filter_range)
     if frame is not None:
         if isinstance(frame, Number):
             f,ax = plot_map(extract_max_frame(x,y, spectral_cube, frame))
@@ -138,7 +140,7 @@ def measure_source_fwhm(detection, data, rmax=10):
     return (get_fwhm(photo_flux))
 
 
-def get_sources(detection_frame, mask=False, sigma = 5.0, mode='DAO', fwhm = 2.5, threshold = None):
+def get_sources(detection_frame, mask=False, sigma = 5.0, mode='DAO', fwhm = 2.5, threshold = None, npix=4, return_segm_image = False):
     if mask is False:
         mask = np.ones_like(detection_frame)
     if threshold is None:
@@ -162,34 +164,55 @@ def get_sources(detection_frame, mask=False, sigma = 5.0, mode='DAO', fwhm = 2.5
         star_list = astro.load_star_list(path)
         sources = Table([star_list[:,0], star_list[:,1]], names=('ycentroid', 'xcentroid'))
     elif mode == 'SEGM':
-        logging.debug('Detecting')
-        segm = detect_sources(detection_frame, threshold, npixels=4)
+        logging.info('Detecting')
+        segm = detect_sources(detection_frame, threshold, npixels=npix)
         deblend = True
+        labels = segm.labels
         if deblend:
+            # while labels.shape != (0,):
+            #     try:
+            #         #logging.info('Deblending')
+            #         # fwhm = 3.
+            #         # s = fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+            #         # kernel = Gaussian2DKernel(s, x_size = 3, y_size = 3)
+            #         # kernel = Box2DKernel(3, mode='integrate')
+            #         deblended = deblend_sources(detection_frame, segm, npixels=npix, labels=labels)#, filter_kernel=kernel)
+            #         success = True
+            #     except ValueError as e:
+            #         #warnings.warn('Deblend was not possible.\n %s'%e)
+            #         source_id = int(e.args[0].split('"')[1])
+            #         id = np.argwhere(labels == source_id)[0,0]
+            #         labels = np.concatenate((labels[:id], labels[id+1:]))
+            #         success = False
+            #     if success is True:
+            #         break
             try:
-                logging.debug('Deblending')
+                logging.info('Deblending')
                 # fwhm = 3.
                 # s = fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
                 # kernel = Gaussian2DKernel(s, x_size = 3, y_size = 3)
                 # kernel = Box2DKernel(3, mode='integrate')
-                deblended = deblend_sources(detection_frame, segm, npixels=4)#, filter_kernel=kernel)
+                deblended = deblend_sources(detection_frame, segm, npixels=npix)#, filter_kernel=kernel)
             except ValueError as e:
                 warnings.warn('Deblend was not possible.\n %s'%e)
                 deblended = segm
-            logging.debug('Retieving properties')
+            logging.info('Retieving properties')
             sources = source_properties(detection_frame, deblended).to_table()
         else:
-            logging.debug('Retieving properties')
-            sources = source_properties(detection_frame, segm).to_table()
-        logging.debug('Filtering Quantity columns')
+            deblended = segm
+            logging.info('Retieving properties')
+            sources = source_properties(detection_frame, deblended).to_table()
+        logging.info('Filtering Quantity columns')
         for col in sources.colnames:
             if type(sources[col]) is Quantity:
                 sources[col] = sources[col].value
     sources = mask_sources(sources, mask) # On filtre
     df = sources.to_pandas()
-    if 'id' in df:
-       df.pop('id')
-    return df
+    if return_segm_image:
+        return deblended.array, df
+    else:
+        return df
+
 def analyse_source(source, cube, plot=False, return_fit_params=False):
     result = {}
     try:
