@@ -351,3 +351,214 @@ def check_fit(source, SN2_ORCS, SN3_ORCS, SN2_detection_frame, SN3_detection_fra
 
     print source.filter(regex='detected')
     return fit_SN2, fit_SN3
+
+
+def fit_SN2(source, cube, v_guess = None, v_min = -800., v_max = 0., lines=None, return_fit_params = False, kwargs_spec={}, kwargs_bkg = {}, debug=False):
+    fit_res = {}
+    try:
+        x, y = map(int, source[['xpos', 'ypos']])
+
+        big_box = centered_square_region(x,y,30)
+        medium_box_bkg = centered_square_region(15,15,15)
+        small_box = centered_square_region(15,15, 3)
+        data = cube._extract_spectra_from_region(big_box, silent=True)
+        mask = np.ones((30, 30))
+        mask[medium_box_bkg] = 0
+        bkg_spec = np.nanmedian(data[np.nonzero(mask)], axis=0)
+
+        medium_box = centered_square_region(15,15,5)
+        mask = np.ones((30, 30))
+        mask[medium_box] = 0
+        data -= np.nanmedian(data[np.nonzero(mask)], axis=0)
+
+        a = cube.params.base_axis
+        imin,imax = np.searchsorted(a, cube.params.filter_range)
+        s = np.nansum(data[small_box], axis=0)
+
+        theta_orig = np.nanmean(cube.get_theta_map()[centered_square_region(x,y,3)])
+
+
+        try: # Spec FIT
+            spec = s[imin+5:imax-5]
+            axis = a[imin+5:imax-5]
+            mean,_,err = stats_without_lines(spec, axis,
+                                          SN2_LINES, -1300., 700.)
+            fit_res['err'] = err
+            fit_res['guess_snr'] = np.nanmax((spec - mean) / err)
+
+            if lines is None:
+                lines = SN2_LINES
+            if v_guess is None:
+                if 'v_guess' in source.keys():
+                    v_guess = source['v_guess']
+                    if (v_guess > v_max) | (v_guess < v_min):
+                        lines = ['Hbeta']
+            if v_guess is None:
+                v_guess, l = guess_source_velocity(s, cube, v_min = v_min, v_max = v_max, debug=debug, return_line=True)
+            if v_guess is None:
+                fit_res['exit_status'] = 1
+                v_guess, l = guess_source_velocity(s, cube, v_min = -np.inf, v_max = np.inf, lines=['Hbeta'], debug=debug, return_line=True)
+                lines = ['Hbeta']
+            try:
+                logging.info('V_guess before refine %s'%v_guess)
+                coeff = np.nanmax(spec)
+                v_guess = refine_velocity_guess(spec/coeff, axis, v_guess, l)
+                logging.info('V_guess after refine %s'%v_guess)
+            except Exception as e:
+                pass
+            fit_res['v_guess'] = v_guess
+            if 'fmodel' not in kwargs_spec:
+                kwargs_spec['fmodel'] = 'sinc'
+            kwargs_spec['pos_def']=['1']
+            if 'signal_range' not in kwargs_spec:
+                kwargs_spec['signal_range'] = cube.params.filter_range
+            kwargs_spec['pos_cov'] = v_guess
+
+            cube._prepare_input_params(lines, nofilter=True, **kwargs_spec)
+            fit_params = fit_lines_in_spectrum(cube.params, cube.inputparams, cube.fit_tol,
+                                                s, theta_orig,
+                                                snr_guess=err,  debug=debug)
+            # fit_params = cube._fit_lines_in_spectrum(s, theta_orig, snr_guess=err)
+#             _,_,fit_params = cube.fit_lines_in_integrated_region(centered_square_region(x,y,3), SN2_LINES,
+#                                                               nofilter=True, snr_guess=err,
+#                                                               subtract_spectrum=sub_spec, **kwargs_spec)
+
+            if fit_params == []:
+                fit_res['exit_status'] = 2
+            else:
+                fit_res['exit_status'] = 0
+                keys_to_keep = ['chi2', 'rchi2', 'ks_pvalue', 'logGBF']
+                fit_res.update({k:v for (k,v) in fit_params.items() if k in keys_to_keep})
+                fit_res['broadening'] = fit_params['broadening'][0]
+                fit_res['broadening_err'] = fit_params['broadening_err'][0]
+                fit_res['velocity'] = fit_params['velocity'][0]
+                fit_res['velocity_err'] = fit_params['velocity_err'][0]
+
+                # !! has to be in the same order than in fit_spectrum function
+                for j, l in enumerate(lines):
+                    line_name = l.lower().replace('[', '').replace(']', '')
+                    fit_res['flux_%s'%line_name] = fit_params['flux'][j]
+                    fit_res['flux_%s_err'%line_name] = fit_params['flux_err'][j]
+                    fit_res['snr_%s'%line_name] = fit_params['snr'][j]
+        except Exception as e:
+            print e
+            pass
+        try: #BKG velocity
+            bkg_err = np.nanstd(np.concatenate([bkg_spec[:imin-40], bkg_spec[imax+40:]]))
+            kwargs_bkg.update({'fmodel':'gaussian'})
+            kwargs_bkg.update({'fwhm_def':['1']})
+            kwargs_bkg.update({'signal_range':(19500,20500)})
+
+            lines = ['[OIII]5007']
+            v_guess, l = guess_source_velocity(bkg_spec, cube, lines=lines, force=True, return_line=True)
+            try:
+                logging.info('V_guess before refine %s'%v_guess)
+                coeff = np.nanmax(bkg_spec)
+                v_guess = refine_velocity_guess(bkg_spec/coeff, a, v_guess, l)
+                logging.info('V_guess after refine %s'%v_guess)
+            except Exception as e:
+                pass
+            fit_res['bkg_v_guess'] = v_guess
+            kwargs_bkg['pos_cov'] = v_guess
+            kwargs_bkg['pos_def'] = ['1']
+            cube.inputparams = {}
+            cube._prepare_input_params(lines, nofilter = True, **kwargs_bkg)
+            fit_params_bkg = fit_lines_in_spectrum(cube.params, cube.inputparams, cube.fit_tol,
+                                                bkg_spec, theta_orig,
+                                                snr_guess=bkg_err,  debug=debug)
+
+            if fit_params_bkg == []:
+                fit_res['bkg_exit_status'] = 2
+            else:
+                fit_res['bkg_exit_status'] = 0
+                fit_res['bkg_velocity'] = fit_params_bkg['velocity'][0]
+                fit_res['bkg_velocity_err'] = fit_params_bkg['velocity_err'][0]
+
+        except Exception as e:
+            print e
+            pass
+    except Exception as e:
+        print e
+        fit_res['exit_status'] = 3
+    if return_fit_params:
+        return pd.Series(fit_res), fit_params
+    else:
+        return pd.Series(fit_res)
+
+def fit_SN3(source, cube, v_guess = None, lines=None, return_fit_params = False, kwargs_spec={}, kwargs_bkg = {}, debug=False):
+    fit_res = {}
+    try:
+        x, y = map(int, source[['xpos', 'ypos']])
+
+        big_box = centered_square_region(x,y,30)
+        medium_box_bkg = centered_square_region(15,15,15)
+        data = cube._extract_spectra_from_region(big_box, silent=True)
+        mask = np.ones((30, 30))
+        mask[medium_box_bkg] = 0
+        bkg_spec = np.nanmedian(data[np.nonzero(mask)], axis=0)
+
+        medium_box = centered_square_region(15,15,5)
+        small_box = centered_square_region(15,15, 3)
+        mask = np.ones((30, 30))
+        mask[medium_box] = 0
+        data -= np.nanmedian(data[np.nonzero(mask)], axis=0)
+
+        a = cube.params.base_axis
+        imin,imax = np.searchsorted(a, cube.params.filter_range)
+        s = np.nansum(data[small_box], axis=0)
+
+        theta_orig = np.nanmean(cube.get_theta_map()[centered_square_region(x,y,3)])
+
+        try: # Spec FIT
+            mean,_,err = stats_without_lines(s[imin+5:imax-5], a[imin+5:imax-5],
+                                          SN3_LINES, -1300., 700.)
+            fit_res['err'] = err
+            fit_res['guess_snr'] = np.nanmax((s[imin+5:imax-5] - mean) / err)
+
+            if lines is None:
+                lines = SN3_LINES
+            if v_guess is None:
+                if 'v_guess' in source.keys():
+                    v_guess = source['v_guess']
+            fit_res['v_guess'] = v_guess
+            if 'fmodel' not in kwargs_spec:
+                kwargs_spec['fmodel'] = 'sinc'
+            if 'pos_def' not in kwargs_spec:
+                kwargs_spec['pos_def']=['1']
+            if 'signal_range' not in kwargs_spec:
+                kwargs_spec['signal_range'] = cube.params.filter_range
+            kwargs_spec['pos_cov'] = v_guess
+
+            cube._prepare_input_params(lines, nofilter=True, **kwargs_spec)
+            fit_params = fit_lines_in_spectrum(cube.params, cube.inputparams, cube.fit_tol,
+                                                s, theta_orig,
+                                                snr_guess=err,  debug=debug)
+#             _,_,fit_params = cube.fit_lines_in_integrated_region(centered_square_region(x,y,3), SN2_LINES,
+#                                                               nofilter=True, snr_guess=err,
+#                                                               subtract_spectrum=sub_spec, **kwargs_spec)
+            if fit_params == []:
+                fit_res['exit_status'] = 2
+            else:
+                fit_res['exit_status'] = 0
+                keys_to_keep = ['chi2', 'rchi2', 'ks_pvalue', 'logGBF']
+                fit_res.update({k:v for (k,v) in fit_params.items() if k in keys_to_keep})
+                fit_res['broadening'] = fit_params['broadening'][0]
+                fit_res['broadening_err'] = fit_params['broadening_err'][0]
+                fit_res['velocity'] = fit_params['velocity'][0]
+                fit_res['velocity_err'] = fit_params['velocity_err'][0]
+
+                # !! has to be in the same order than in fit_spectrum function
+                for j, l in enumerate(lines):
+                    line_name = l.lower().replace('[', '').replace(']', '')
+                    fit_res['flux_%s'%line_name] = fit_params['flux'][j]
+                    fit_res['flux_%s_err'%line_name] = fit_params['flux_err'][j]
+                    fit_res['snr_%s'%line_name] = fit_params['snr'][j]
+        except Exception as e:
+            pass
+    except Exception as e:
+        print e
+        fit_res['exit_status'] = 3
+    if return_fit_params:
+        return pd.Series(fit_res), fit_params
+    else:
+        return pd.Series(fit_res)
