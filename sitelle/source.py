@@ -190,3 +190,165 @@ def get_sources(detection_frame, mask=False, sigma = 5.0, mode='DAO', fwhm = 2.5
     if 'id' in df:
        df.pop('id')
     return df
+def analyse_source(source, cube, plot=False, return_fit_params=False):
+    result = {}
+    try:
+        from astropy.stats import sigma_clipped_stats, gaussian_sigma_to_fwhm
+        from sitelle.constants import SN2_LINES, SN3_LINES
+        from sitelle.region import centered_square_region
+        from orb.utils.spectrum import line_shift
+        from orb.core import Lines
+
+        filter_name = cube.params.filter_name
+
+        if filter_name == 'SN2':
+            LINES = SN2_LINES
+        elif filter_name == 'SN3':
+            LINES = SN3_LINES
+        else:
+            raise ValueError(filter_name)
+
+        ## We build a flux map of the detected lines
+        detected_lines = [line_name for line_name in LINES if source['%s_detected'%line_name.lower().replace('[', '').replace(']', '')]]
+        if detected_lines == []:
+            return pd.Series(result)
+
+        x,y = source.as_matrix(['xpos', 'ypos']).astype(int)
+        big_box = centered_square_region(x,y,30)
+        medium_box = centered_square_region(15,15,5)
+        small_box = centered_square_region(15,15, 3)
+        data = cube._extract_spectra_from_region(big_box, silent=True)
+        mask = np.ones((30, 30))
+        mask[medium_box] = 0
+        bkg_spec = np.nanmedian(data[np.nonzero(mask)], axis=0)
+        data -= bkg_spec
+
+        axis = cube.params.base_axis
+        spec = np.nansum(data[small_box], axis=0)
+
+        line_pos = np.atleast_1d(Lines().get_line_cm1(detected_lines) + line_shift(source['velocity'], Lines().get_line_cm1(detected_lines), wavenumber=True))
+        pos_min = line_pos - cube.params.line_fwhm
+        pos_max = line_pos + cube.params.line_fwhm
+        pos_index = np.array([[np.argmin(np.abs(axis-pos_min[i])), np.argmin(np.abs(axis-pos_max[i]))] for i in range(pos_min.shape[0])])
+
+        bandpass_size = 0
+        flux_map = np.zeros(data.shape[:-1])
+        for line_detection in pos_index:
+            bandpass_size += line_detection[1]-line_detection[0]
+            flux_map += np.nansum(data[:,:,line_detection[0]:line_detection[1]], axis=-1)
+
+        _,_,std_map = sigma_clipped_stats(data, axis=-1)
+        flux_noise_map = np.sqrt(bandpass_size)*std_map
+
+        #Test for randomness of the flux_map
+        from scipy import stats
+        result['flux_map_ks_pvalue'] = stats.kstest((flux_map/flux_noise_map).flatten(), 'norm').pvalue
+
+        #Fit of the growth function
+        from photutils import RectangularAperture
+        from scipy.special import erf
+        from scipy.optimize import curve_fit
+
+
+        try:
+            _x0 = source['xcentroid'] - x + 15.
+            _y0 = source['ycentroid'] - y + 15.
+        except:
+            _x0 = source['xpos'] - x + 15.
+            _y0 = source['ypos'] - y + 15.
+
+        flux_r = [0.]
+        flux_err_r = [np.nanmin(flux_noise_map)]
+
+        r_max = 15
+        r_range = np.arange(1, r_max+1)
+        for r in r_range:
+#             aper = CircularAperture((_x0,_y0), r)
+            aper = RectangularAperture((_x0,_y0), r,r,0)
+            flux_r.append(aper.do_photometry(flux_map)[0][0])
+            flux_err_r.append(np.sqrt(aper.do_photometry(flux_noise_map**2)[0][0]))
+
+        flux_r = np.atleast_1d(flux_r)
+        flux_err_r = np.atleast_1d(flux_err_r)
+
+        result['flux_r'] = flux_r
+        result['flux_err_r'] = flux_err_r
+        try:
+            def model(r, x0, y0, sx, sy, A):
+                return A*erf((r/2.-x0)/(2*sx*np.sqrt(2)))*erf((r/2.-y0)/(2*sy*np.sqrt(2)))
+            R = np.arange(r_max+1)
+            p, cov = curve_fit(model, R, flux_r,
+                               p0=[0,0,1.5,1.5,flux_map.max()],
+                               bounds=([-2, -2, -np.inf, -np.inf, -np.inf], [2,2,np.inf, np.inf, np.inf]),
+                               sigma= flux_err_r, absolute_sigma=True,
+                               maxfev=10000)
+            if (p[2] < 0) != (p[3] < 0):
+                if p[-1] < 0:
+                    p[-1] = -p[-1]
+                    if p[2]<0:
+                        p[2] = - p[2]
+                    elif p[3] < 0:
+                        p[3] = -p[3]
+            if plot:
+                f,ax = plt.subplots()
+                ax.plot(R,model(R,*p), label='Fit')
+                ax.errorbar(R, flux_r, flux_err_r, label='Flux')
+                ax.set_ylabel('Flux')
+                ax.set_xlabel('Radius from source')
+                ax.legend()
+
+            from scipy.optimize import bisect
+            fwhm = bisect(lambda x:model(x, *p) -p[-1]/2, 0.1, 10)
+            result['erf_amplitude'] = p[-1]
+            result['erf_amplitude_err'] = np.sqrt(np.diag(cov))[-1]
+            result['erf_xfwhm'] = gaussian_sigma_to_fwhm*p[2]
+            result['erf_yfwhm'] = gaussian_sigma_to_fwhm*p[3]
+            result['erf_ks_pvalue'] = stats.kstest((flux_r-model(R,*p))/flux_err_r, 'norm').pvalue
+            result['erf_fwhm'] =fwhm
+
+            result['flux_fraction_3'] = flux_r[3]/p[-1]
+            result['model_flux_fraction_15'] = model(R,*p)[r_range[-1]] / p[-1]
+
+            result['modeled_flux_r'] = model(R,*p)
+
+        except Exception as e:
+            print(e)
+            pass
+
+        ## 2D fit of the PSF
+        from astropy.modeling import models, fitting
+
+        fitter = fitting.LevMarLSQFitter()
+        X,Y = np.mgrid[:30, :30]
+
+        flux_std = np.nanmean(flux_noise_map)
+
+        gauss_model = models.Gaussian2D(amplitude = np.nanmax(flux_map/flux_std),x_mean = _y0, y_mean = _x0)
+        gauss_model.bounds['x_mean'] = (14, 16)
+        gauss_model.bounds['y_mean'] = (14, 16)
+        gauss_fit = fitter(gauss_model, X,Y, flux_map/flux_std)
+
+        if plot is True:
+            f, ax = plt.subplots(1,3, figsize=(8,3))
+            v_min = np.nanmin(flux_map)
+            v_max = np.nanmax(flux_map)
+            plot_map(flux_map, ax=ax[0], cmap='RdBu_r', vmin=v_min, vmax=v_max)
+            ax[0].set_title("Data")
+            plot_map(gauss_fit(X, Y)*flux_std, ax=ax[1], cmap='RdBu_r', vmin=v_min, vmax=v_max)
+            ax[1].set_title("Model")
+            plot_map(flux_map - gauss_fit(X, Y)*flux_std, ax=ax[2], cmap='RdBu_r', vmin=v_min, vmax=v_max)
+            ax[2].set_title("Residual")
+
+        result['psf_snr'] = gauss_fit.amplitude[0]
+        result['psf_amplitude'] = flux_std*gauss_fit.amplitude[0]*2*np.pi*gauss_fit.x_stddev*gauss_fit.y_stddev
+        result['psf_xfwhm'] = gauss_fit.x_fwhm
+        result['psf_yfwhm'] = gauss_fit.y_fwhm
+        normalized_res = (flux_map - gauss_fit(X, Y)*flux_std)/flux_noise_map
+        result['psf_ks_pvalue'] = stats.kstest(normalized_res.flatten(),'norm').pvalue
+        if return_fit_params:
+            return pd.Series(result), p, gauss_fit
+        else:
+            return pd.Series(result)
+    except Exception as e:
+        print e
+        return pd.Series(result)
