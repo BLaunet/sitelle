@@ -239,6 +239,25 @@ def guess_source_velocity(spectrum, cube, v_min = -800., v_max = 50., debug=Fals
         max_pos = cube.params.base_axis[imin+5:imax-5][np.nanargmax(spectrum[imin+5:imax-5])]
     return guess_line_velocity(max_pos, v_min, v_max, debug=debug, lines=lines, return_line=return_line)
 
+def refine_velocity_guess(spectrum, axis, v_guess, detected_line, return_fit = False):
+    from orb.utils.spectrum import line_shift, compute_radial_velocity
+    from orb.core import Lines
+    from astropy.modeling import models, fitting
+    line_rest = Lines().get_line_cm1(detected_line)
+
+    mu =  line_rest + line_shift(v_guess, line_rest, wavenumber=True)
+    G0 = models.Gaussian1D(amplitude=np.nanmax(spectrum), mean=mu, stddev=11)
+    G0.mean.max = line_rest + line_shift(v_guess-25, line_rest, wavenumber=True)
+    G0.mean.min = line_rest + line_shift(v_guess+25, line_rest, wavenumber=True)
+    C = models.Const1D(amplitude = np.nanmedian(spectrum))
+
+    model = C+G0
+    fitter = fitting.LevMarLSQFitter()
+    fit = fitter(model, axis, spectrum)
+    if return_fit:
+        return compute_radial_velocity(fit.mean_1,line_rest, wavenumber=True), fit
+    else:
+        return compute_radial_velocity(fit.mean_1,line_rest, wavenumber=True)
     # if 'fmodel' not in kwargs:
     #     kwargs['fmodel'] = 'sincgauss'
     # if 'sigma_cov' not in kwargs:
