@@ -99,15 +99,23 @@ def check_source(x,y, spectral_cube, frame=None, smooth_factor = None):
         f,ax = plot_map(spectral_cube.get_deep_frame()[x-10:x+11, y-10:y+11])
     ax.scatter(10,10, marker='+', color='red')
 
-def measure_coherence(source, detection_pos_frame):
+def measure_coherence(source, argmax_map, segm_image = None):
     """
     Coherence is a measure of the credibility of a source as an emission line source.
     It checks if the hot pixels of a source are coming from ~the same frames of the cube
     :param source: pandas Dataframe with 'xcentroid', 'ycentroid' columns
     :param detection_pos_frame: map of the id of the max pixels
     """
-    y,x = np.round(source[['xcentroid', 'ycentroid']]).astype(int)
-    return 1/np.nanstd(detection_pos_frame[x-1:x+2, y-1:y+2])
+    if segm_image is not None:
+        source_pos = argmax_map[np.nonzero(segm_image == source['id'])]
+    else:
+        x,y = source[['xpos', 'ypos']].astype(int)
+        source_pos = argmax_map[x-1:x+2, y-1:y+2].flatten()
+    var = np.nanstd(np.sort(source_pos))
+    if var == 0:
+        return 10
+    else:
+        return 1/var
 
 def measure_source_fwhm(detection, data, rmax=10):
     x,y = np.array(detection[['xcentroid', 'ycentroid']])
