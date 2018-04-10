@@ -252,6 +252,48 @@ def plot_sources(sources, ax, **kwargs):
     apertures.plot(color=color, lw=lw, alpha=alpha, ax=ax, **kwargs)
     return f,ax
 
+def plot_density_scatter(xdat,ydat,xlims=None, ylims=None, ax=None, bins=[100,100], colorbar=True):
+    """
+    Example :
+    xlims = [-18.5, -15]
+    ylims = [-18.5, -15]
+    f,ax = density_scatter(np.log10(X), np.log10(Y), xlims=xlims, ylims=ylims)
+    ax.plot(np.linspace(-20, -15), np.linspace(-20, -15), c='k')
+    ax.set_xlim(xlims)
+    ax.set_ylim(ylims)
+    """
+    if xlims is None:
+        xlims = [np.nanmin(xdat), np.nanmax(xdat)]
+    if ylims is None:
+        ylims = [np.nanmin(ydat), np.nanmax(ydat)]
+    xyrange = [xlims, ylims]
+    thresh = 3  #density threshold
+
+    # histogram the data
+    hh, locx, locy = scipy.histogram2d(xdat, ydat, range=xyrange, bins=bins)
+    posx = np.digitize(xdat, locx)
+    posy = np.digitize(ydat, locy)
+    #select points within the histogram
+    ind = (posx > 0) & (posx <= bins[0]) & (posy > 0) & (posy <= bins[1])
+    hhsub = hh[posx[ind] - 1, posy[ind] - 1] # values of the histogram where the points are
+    xdat1 = xdat[ind][hhsub < thresh] # low density points
+    ydat1 = ydat[ind][hhsub < thresh]
+    hh[hh < thresh] = np.nan # fill the areas with low density by NaNs
+
+    if ax is None:
+        f,ax = plt.subplots()
+    else:
+        f = ax.get_figure()
+    im = ax.imshow(np.flipud(hh.T),cmap='jet', interpolation='none', origin='upper', extent=np.array(xyrange).flatten())
+    x0,x1 = xlims
+    y0,y1 = ylims
+    ax.set_aspect((x1-x0)/(y1-y0))
+    if colorbar:
+        #   add_colorbar(im, ax, fig)
+        f.colorbar(im, ax=ax)
+    ax.plot(xdat1, ydat1, '+',color='darkblue')
+    return f,ax
+
 class Interactive1DPlotter:
     def __init__(self, axes, cube_axis, cube, *args, **kwargs):
         """
