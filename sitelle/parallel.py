@@ -158,7 +158,7 @@ def parallel_apply_along_axis(func1d, axis, arr, *args, **kwargs):
 
     return np.concatenate(job_output)
 
-def _apply_over_frames(func2d, cube, *args, **kwargs):
+def apply_over_frames(func2d, cube, *args, **kwargs):
     #We have to determine dimension of what is returned
     res0 = np.array(func2d(cube[:,:,0], *args, **kwargs))
     res_cube = np.zeros((res0.shape + (cube.shape[-1], )))
@@ -194,13 +194,13 @@ def parallel_apply_over_frames(func2d, cube, *args, **kwargs):
               for sub_cube in np.array_split(cube, ncpus, axis=2)]
 
     def helper(func2d, cube, args, kwargs):
-        return _apply_over_frames(func2d, cube, *args, **kwargs)
+        return apply_over_frames(func2d, cube, *args, **kwargs)
 
     modules = kwargs.pop('modules', tuple())
     modules += ('import numpy as np',)
 
     depfuncs = kwargs.pop('depfuncs', tuple())
-    depfuncs += (func2d,_apply_over_frames)
+    depfuncs += (func2d,apply_over_frames)
     jobs = [job_server.submit(
                 helper,
                 args=(c),
