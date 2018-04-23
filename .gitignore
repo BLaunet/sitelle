@@ -14,3 +14,8 @@
 scripts/AnneLaure/*
 
 !docs
+docs/_build
+docs/_static
+docs/api
+
+cython_version.py
