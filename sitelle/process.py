@@ -9,6 +9,7 @@ from sitelle.parallel import available_cpu_count
 from orb.utils.parallel import init_pp_server, close_pp_server
 from orcs.core import Filter
 
+__all__ = ['SpectralCubePatch']
 class SpectralCubePatch(SpectralCube):
 
     def get_filter_range(self, wavenumber=True):

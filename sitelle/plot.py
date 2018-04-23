@@ -6,6 +6,8 @@ from photutils import CircularAperture
 from orb.utils.spectrum import line_shift
 from sitelle.constants import SN2_LINES, SN3_LINES
 import scipy
+
+__all__ = ['customize_axes', 'make_wavenumber_axes', 'make_wavelength_axes', 'lines_pos', 'add_lines_label', 'add_colorbar', 'plot_map', 'plot_hist', 'plot_scatter', 'plot_density_scatter', 'plot_sources', 'plot_spectra', 'Interactive1DPlotter', 'SpectraPlotter']
 def customize_axes(axes, **kwargs):
     for k,v in kwargs.items():
         try:

@@ -15,6 +15,7 @@ from astropy.stats import sigma_clipped_stats
 import matplotlib.pyplot as plt
 from sitelle.utils import stats_without_lines
 from sitelle.plot import *
+__all__ = ['sky_model_to_remove', 'parse_line_params', 'chi2_func', 'remove_OH_line', 'fit_gas_lines', 'guess_line_velocity', 'guess_source_velocity', 'refine_velocity_guess', 'fit_spectrum', 'fit_source', 'check_fit', 'fit_SN2', 'fit_SN3']
 def sky_model_to_remove(mean_spectrum, axis, sky_axis, sky_model):
     """
     This function shifts the velocity of a skymodel to match at best the skylines in a spectrum.

@@ -7,7 +7,7 @@ import os
 import re
 import subprocess
 
-
+__all__ = ['available_cpu_count', 'parallel_apply_along_axis', 'apply_over_frames', 'parallel_apply_over_frames', 'parallel_apply_over_df']
 def available_cpu_count():
     """ Number of available virtual or physical CPUs on this system, i.e.
     user/real as output by time(1) when called with an optimally scaling

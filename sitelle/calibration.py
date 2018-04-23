@@ -3,6 +3,8 @@ import pandas as pd
 import orb
 import logging
 # this is a very basic filter to remove stars position which are out of the image
+__all__ = ['filter_star_list', 'fit_stars_from_list', 'compute_precision', 'world2pix', 'pix2world', 'match_star_list']
+
 def filter_star_list(_star_list):
     _star_list = np.copy(_star_list)
     for istar in range(_star_list.shape[0]):

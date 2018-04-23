@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 import orb
+
+__all__ = ['estimate_noise', 'gen_wavelength_header', 'read_wavelength_axis', 'rebin', 'regular_wl_axis', 'wavelength_regrid', 'nm_to_cm1', 'swap_header_axis', 'filter_star_list', 'measure_dist', 'get_star_list', 'stats_without_lines']
 def estimate_noise(full_axis, full_spectrum, filter_lims, side='both'):
     '''
     Estimates the noise in an integrated spectra from sitelle, by measuring it outside of the filter range.
@@ -20,8 +22,6 @@ def estimate_noise(full_axis, full_spectrum, filter_lims, side='both'):
     else:
         raise ValueError(side)
     return np.std(noise)
-
-
 
 def gen_wavelength_header(h, axis, ax_num = 3):
     """

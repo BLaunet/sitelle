@@ -2,6 +2,7 @@ import numpy as np
 import orb
 from scipy.interpolate import UnivariateSpline
 
+__all__ = ['circular_region', 'square_region', 'centered_square_region', 'physical_region', 'remap', 'get_contour_boundaries', 'fill_contour', 'smooth_contour', 'convert_contour']
 
 def circular_region(x, y, r):
     """
