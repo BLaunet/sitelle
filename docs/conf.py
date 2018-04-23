@@ -42,7 +42,8 @@ intersphinx_mapping = {'numpy': ('https://docs.scipy.org/doc/numpy/', None),
                        'astropy': ('http://docs.astropy.org/en/stable/', None),
                        'path': ('https://pathpy.readthedocs.io/en/latest/', None),
                        'ORCS': ('http://132.203.11.199/orcs-doc/', None),
-                       'ORB': ('http://132.203.11.199/orb-doc/', None)}
+                       'ORB': ('http://132.203.11.199/orb-doc/', None),
+                       'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None)}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
