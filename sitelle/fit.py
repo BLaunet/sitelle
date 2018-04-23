@@ -15,18 +15,29 @@ from astropy.stats import sigma_clipped_stats
 import matplotlib.pyplot as plt
 from sitelle.utils import stats_without_lines
 from sitelle.plot import *
+
 __all__ = ['sky_model_to_remove', 'parse_line_params', 'chi2_func', 'remove_OH_line', 'fit_gas_lines', 'guess_line_velocity', 'guess_source_velocity', 'refine_velocity_guess', 'fit_spectrum', 'fit_source', 'check_fit', 'fit_SN2', 'fit_SN3']
+
 def sky_model_to_remove(mean_spectrum, axis, sky_axis, sky_model):
     """
     This function shifts the velocity of a skymodel to match at best the skylines in a spectrum.
-    It returns the fitted vector, that shoukld be then subtracted from the original spectrum.
-    :param mean_spectrum: The spectrum containing skylines.
-    If it comes from an integrated region, pay attention to give the **mean** spectrum,
-    i.e divided by the number of integrated pixels
-    :param axis: Axis of the spectrum
-    :param sky_axis: axis on which the skymodel is known
-    :param skymodel: Sky spectrum to be fitted
-    :return: the shifted skymodel, to be removed
+    It returns the fitted vector, that should be then subtracted from the original spectrum.
+
+    Parameters
+    ----------
+    mean_spectrum : 1D :class:`~numpy:numpy.ndarray`
+        The spectrum containing skylines.
+        If it comes from an integrated region, pay attention to give the **mean** spectrum, i.e divided by the number of integrated pixels
+    axis : 1D :class:`~numpy:numpy.ndarray`
+        Axis of the spectrum [cm-1]
+    sky_axis : 1D :class:`~numpy:numpy.ndarray`
+        Axis on which the skymodel is known [cm-1]
+    skymodel : 1D :class:`~numpy:numpy.ndarray`
+        Sky spectrum to be fitted
+    Returns
+    -------
+    shifted_spectrum : :class:`~numpy:numpy.ndarray`
+        The shifted sky spectrum, to be removed
     """
     c = 299792.458
     axis = np.log10(axis) #This way, a velocity shift correspond to a constant
@@ -47,12 +58,22 @@ def sky_model_to_remove(mean_spectrum, axis, sky_axis, sky_model):
 
 def parse_line_params(rest_lines, fit, error = True, wavenumber = True):
     """
-    Parse the fitted parameters to display them as a nice pandas DataFrame
-    :param rest_lines: Name or position of the lines at rest
-    :param fit: the 'fit_params' in the output of a fit from orcs
-    :param error: if True, the errors are also parsed (Default = True)
-    :param wavenumber: if True, output is in wavenumber (else in wavelength). Default = True
-    :return lines_df: a pandas Dataframe containing all information about the fitted lines
+    Parse the fitted parameters to display them as a nice :class:`~pandas:pandas.DataFrame`
+
+    Parameters
+    ----------
+    rest_lines: list of str or list of float
+        Names (as defined `here <http://celeste.phy.ulaval.ca/orcs-doc/introduction.html#list-of-available-lines>`_) or positions of the lines at rest.
+    fit : dict
+        the ``fit_params`` in the output of a fit from orcs (e.g. output from :func:`~ORCS:orcs.core.HDFCube.fit_lines_in_spectrum`)
+    error : bool
+        if True, the errors are also parsed (Default = True)
+    wavenumber : bool
+        if True, output is in wavenumber (else in wavelength). Default = True
+    Returns
+    -------
+    table : :class:`~pandas:pandas.DataFrame`
+        Table containing all information about the fitted lines, easier to read
     """
     #Potential names
     lines_cm1 = list()
@@ -95,12 +116,22 @@ def parse_line_params(rest_lines, fit, error = True, wavenumber = True):
 
 def chi2_func(axis, spectrum, fit_params, delta=8):
     """
-    Computes a chi square only around fitted lines
-    :param axis: axis of the spectrum
-    :param spectrum: spectrum on whoch the fit has been performed
-    :param fit_params: fit parameters containing information about the lines (output from an orcs fit)
-    :param delta: delta around line peak that should be used to compute the chi2. Default = 8
-    :return chi2: a chi square value, computed only around +- sigma * fwhm each line
+    Computes a chi square value only around fitted lines.
+
+    axis : 1D :class:`~numpy:numpy.ndarray`
+        Axis of the spectrum [cm-1]
+    spectrum : 1D :class:`~numpy:numpy.ndarray`
+        Spectrum on which the fit has been performed
+    fit_params: dict
+        fit parameters containing information about the lines (output from an orcs fit, e.g. :func:`~ORCS:orcs.core.HDFCube.fit_lines_in_spectrum`)
+    delta : int
+        Delta in FWHM around line peak that should be used to compute the chi2. Default = 8
+
+    Returns
+    -------
+    float
+        a chi square value, computed only around +- delta * fwhm each line
+
     """
 
     #We keep only indices around the fitted lines
@@ -120,11 +151,26 @@ def chi2_func(axis, spectrum, fit_params, delta=8):
 def remove_OH_line(spectrum, theta, cube, **kwargs):
     """
     Function used to remove the strange Halpha line around -400km/s (probably OH line).
+
+    DEPRECATED
     To be used with care, especially when there is a real Halpha signal there.
-    :param spectrum: the spectrum to fit
-    :param theta: theta value corresponding to the spectrum
-    :param cube: Spectral cube instance from which the spctrum is taken
-    :return: the spectrium whithout this line (hopefully)
+    By default, the line is modeled as a sinc at the position of a Halpha line offseted at a velocity of -400 km/s
+
+    Parameters
+    ----------
+    spectrum : 1D :class:`~numpy:numpy.ndarray`
+        the spectrum to fit
+    theta : float
+        incident angle on the detector corresponding to the spectrum (obtained by passing ``return_mean_theta = True`` in :func:`~ORCS:orcs.core.HDFCube.extract_spectrum`)
+    cube : :class:`~ORCS:orcs.process.SpectralCube`
+        Spectral cube instance from which the spectrum has been extracted.
+    kwargs :
+        Additional arguments defining the line model (same as :func:`~ORB:orb.fit._prepare_input_params`).
+
+    Returns
+    -------
+    1D :class:`~numpy:numpy.ndarray`
+        The spectrium whithout this line (hopefully)
     """
     lines = ['Halpha']
 
@@ -149,15 +195,31 @@ def remove_OH_line(spectrum, theta, cube, **kwargs):
 def fit_gas_lines(z_dim, inputparams, params, lines, V_range, snr_guess = None, silent=False):
     """
     This function fit lines in a given spectrum.
-    :param z_dim: 2D-array. z_dim[0] contains the spectrum to fit, z_dim[1] contains theta, the incident angle at which the spectrum was recorded
-    :param inputparams: output from cube._prepare_input_params()
-    :param params: cube.params.convert()
-    :param lines: name of the lines to fit  (understanble by ORCS)
-    :param V_range: the range of velocity to test
-    :param snr_guess: snr_guess (Default = None)
-    :return out: a cube containing at each cell a dict with 'line_spectra': the fitted line spectra,
-    'fit_params': the fitetd parameters of the lines,
-    'chi2': chi2 list, each elemen,t corresponds to a velocity in V_range
+    DEPRECATED
+    It has been deisgned to be parallelized, hence the apparent complexity.
+
+    Parameters
+    ----------
+    z_dim: 2D :class:`~numpy:numpy.ndarray`
+        z_dim[0] contains the spectrum to fit, z_dim[1] contains ``theta`` , the incident angle at which the spectrum was recorded
+    inputparams : :class:`ORB:orb.fit.InputParams`
+        Output from :func:`~ORCS:orcs.core._prepare_input_params`
+    params : dict
+        Parameters of the cube, obtained with :func:`ORCS:orcs.HDFCube.params.convert`.
+    lines : list of str
+        Names of the lines to fit (as defined `here <http://celeste.phy.ulaval.ca/orcs-doc/introduction.html#list-of-available-lines>`_)
+    V_range : 1D :class:`~numpy:numpy.ndarray`
+        The range of velocity to test.s
+    snr_guess : float
+        Signal to Noise ratio guess (Default = None)
+
+    Returns
+    -------
+    3D :class:`~numpy:numpy.ndarray`
+        A cube containing at each cell a dict with :
+        - 'line_spectra': the fitted line spectra
+        - 'fit_params': the fitetd parameters of the lines
+        - 'chi2': chi2 list, each element corresponds to a velocity in V_range
     """
     spectrum = z_dim[0]
     theta = z_dim[1]
@@ -182,9 +244,33 @@ def fit_gas_lines(z_dim, inputparams, params, lines, V_range, snr_guess = None, 
         fit_params = params_list[imin]
     return {'line_spectra':line_spectra, 'fit_params':fit_params, 'chi2':chi2}
 
-def guess_line_velocity(max_pos, v_min, v_max, lines = None,debug=False, return_line=False):
+def guess_line_velocity(max_pos, v_min, v_max, lines = None, debug=False, return_line=False):
     """
-    From a line position, we estimate the velocity shift
+    Estimation of the velocity shift from a line position.
+    Because we don't have a priori knowledge on which line we are looking at, we try different rest lines while the estimation is not in a given velocity range. If None of the lines are compatible with a velocity shift in the given range, we ouput NaN.
+
+
+    Parameters
+    ----------
+    max_pos : float
+        Observed line position, in cm-1.
+    v_min : float
+        Constraint on the lower bound of the velocity range.
+    v_max : float
+        Constraint on the upper bound of the velocity range.
+    lines : list of str
+        Names of the rest line candidates for the observed line.
+    debug : bool
+        (Optional) If True, a debug id displayed (default = False)
+    return_line : bool
+        (Optional) If True, the name of the line that produced the estimation is output.
+
+    Returns
+    -------
+    v_guess : float
+        The guess on the velocity (NaN if not included in the velocity range)
+    line_name : str
+        (Only if ``return_line = True``) the name of the line.
     """
     if debug:
         logging.info('Max line position : %.2f'%max_pos)
@@ -217,6 +303,41 @@ def guess_line_velocity(max_pos, v_min, v_max, lines = None,debug=False, return_
         return v_guess
 
 def guess_source_velocity(spectrum, cube, v_min = -800., v_max = 50., debug=False, lines = None, force=False, return_line = False):
+    """
+    Estimation of the velocity shift of a spectrum.
+    The position of the max of emission in the spectrum is found, and compared to different lines rest position until a compatible velocity (i.e. included in a given velocity range) is found.
+
+
+    Parameters
+    ----------
+    spectrum : 1D :class:`~numpy:numpy.ndarray`
+        Spectrum to analyze
+    cube : :class:`~ORCS:orcs.process.SpectralCube`
+        Spectral cube instance from which the spectrum has been extracted.
+    v_min : float
+        Constraint on the lower bound of the velocity range.
+    v_max : float
+        Constraint on the upper bound of the velocity range.
+    debug : bool
+        (Optional) If True, a debug id displayed (default = False)
+    lines : list of str
+        (Optional) Names of the rest line candidates for the observed line. If None, the lines in the filter of the cube are used (see `~sitelle.constants.SN2_LINES` and `~sitelle.constants.SN3_LINES`)
+    force : bool
+        (Optional) If True, a velocity guess is outputed no matter it's compatibility with the velocity range input. Should be used only when ``lines`` is restricted to one element.
+    return_line : bool
+        (Optional) If True, the name of the line that produced the estimation is output.
+
+    Returns
+    -------
+    v_guess : float
+        The guess on the velocity (NaN if not included in the velocity range)
+    line_name : str
+        (Only if ``return_line = True``) the name of the line.
+
+    See Also
+    --------
+    `guess_line_velocity`
+    """
     if lines is None:
         if cube.params.filter_name =='SN2':
             lines = ['Hbeta', '[OIII]5007']
