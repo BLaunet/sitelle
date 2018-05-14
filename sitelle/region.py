@@ -82,15 +82,18 @@ def centered_square_region(x,y,b):
 def physical_region(cube, ra, dec, r = 2, circle=True, sex = True, centered=True):
     """
     Computes a physical region on a sitelle cube.
-    If circle = True (Default), it's a circulare region centered on ra,dec. Otherwise,
-    (ra,dec) are the coordinates of the bottom left corner of a square region
+    If circle = True (Default), it's a circulare region centered on ra,dec. Otherwise, (ra,dec) are the coordinates of the bottom left corner of a square region
+
+    Parameters
+    ----------
     cube : :class:`~ORCS:orcs.process.SpectralCube`
         The cube under consideration
     ra : str or float
         right ascension in sexagesimal in format 'xx:xx:xx' if sex = True, else in degrees
     dec : str or float
         declinaison in sexagesimal in format 'xx:xx:xx' if sex = True, else in degrees
-    r : radius of the circle if circle=True, else size of the square
+    r : float
+        radius in pixels of the circle if circle=True, else size of the square
     circle : bool, Default = True
         (Optional) If True, circular region, otherwise square
     sex : bool, Default = True
