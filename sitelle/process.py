@@ -1,3 +1,6 @@
+"""
+File defining an overload of :class:`ORCS:orcs.process.SpectralCube`, to extend or correct some behaviors.
+"""
 from orcs.process import SpectralCube
 import logging
 import numpy as np
@@ -13,6 +16,18 @@ __all__ = ['SpectralCubePatch']
 class SpectralCubePatch(SpectralCube):
 
     def get_filter_range(self, wavenumber=True):
+        """
+        Returns the filter range of a given SpectralCube.
+
+        Parameters
+        ----------
+        wavenumber : bool, Default = True
+            (Optional) If True, the range is in cm-1, else in Angstroms.
+
+        See Also
+        --------
+        :func:`ORCS:orcs.process.SpectralCube.get_filter_range`
+        """
         lims = super(SpectralCubePatch, self).get_filter_range()
         if wavenumber:
             return lims
@@ -21,7 +36,24 @@ class SpectralCubePatch(SpectralCube):
 
 
     def _extract_spectra_from_region(self, region, silent=False, return_theta=False):
+        """
+        Extracts **non integrated** spectra from the cube, given a region.
+        The parallelization is automatically decided, given the number of pixel to treat.
 
+        Parameters
+        ----------
+        region : tuple
+            a region in pixel (obtained with :func:`numpy:numpy.where` for example), from which we want to get spectra.
+        silent : bool, Default = False
+            (Optional) If True, a log is displayed.
+        return_theta : bool, Default = False
+            (Optional) If True, returns the theta values in the ``region``
+
+        Returns
+        -------
+        out : 3D :class:`~numpy:numpy.ndarray`
+            Extracted spectra of the same shape as ``region``
+        """
 
         def _interpolate_spectrum(spec, corr, wavenumber, step, order, base_axis):
             if wavenumber:
@@ -164,8 +196,8 @@ class SpectralCubePatch(SpectralCube):
                                       return_gvar=False,
                                       output_axis=None):
         """
-        Overload the smae method from orcs.core._extract_spectra_from_region,
-        to make use of the new extraction algorithm
+        Overloads :func:`ORCS:orcs.core._extract_spectra_from_region`,
+        to make use of :func:`_extract_spectra_from_region`.
         """
         if median:
             warnings.warn('Median integration')
@@ -235,24 +267,30 @@ class SpectralCubePatch(SpectralCube):
         """
         Integrate a cube under a filter function and generate an image
 
-        :math:`I = \int F(\sigma)S(\sigma)\text{d}\sigma`
+        :math:`I = \int F(\sigma)S(\sigma)d\sigma`
 
         with :math:`I`, the image, :math:`S` the spectral cube, :math:`F` the
         filter function.
 
-        :param filter_function: Must be an orcs.core.Filter instance
+        Contrary to :func:`ORCS:orcs.core.integrate`, it uses the correctly wavelength calibrated spectra.
 
-        :param xmin: (Optional) lower boundary of the ROI along x axis (default
-          None, i.e. min)
+        Parameters
+        ----------
+        filter_function : :class:`ORCS:orcs.core.Filter`
+            The filter to use.
+        xmin : int
+            (Optional) lower boundary of the ROI along x axis in pixels (default None, i.e. 0)
+        xmax : int
+            (Optional) upper boundary of the ROI along y axis in pixels (default None, i.e. dimx)
+        ymin : int
+            (Optional) lower boundary of the ROI along y axis in pixels (default None, i.e. 0)
+        ymax : int
+            (Optional) upper boundary of the ROI along y axis in pixels (default None, i.e. dimy)
 
-        :param xmax: (Optional) lower boundary of the ROI along y axis (default
-          None, i.e. min)
-
-        :param ymin: (Optional) upper boundary of the ROI along x axis (default
-          None, i.e. max)
-
-        :param ymax: (Optional) upper boundary of the ROI along y axis (default
-          None, i.e. max)
+        Returns
+        -------
+        sframe : 2D :class:`~numpy:numpy.ndarray`
+            The integrated frame
         """
         if not isinstance(filter_function, Filter):
             raise TypeError('filter_function must be an orcs.core.Filter instance')
