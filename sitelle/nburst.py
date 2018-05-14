@@ -78,13 +78,13 @@ def sew_spectra(left, right):
 
     Parameters
     ----------
-    left : :class:`~sitelle.nburst.NBurstFitter`
+    left : :class:`NburstFitter`
         left spectra fitter
-    right : :class:`~sitelle.nburst.NBurstFitter`
+    right : :class:`NburstFitter`
         right spectra fitter
     Returns
     -------
-    :class:`~sitelle.nburst.NBurstFitter`
+    :class:`NburstFitter`
         a NburstFitter instance containing the 2 spectra
     """
     if left.spectra.shape[:-1] != right.spectra.shape[:-1]:
@@ -225,8 +225,8 @@ class NburstFitter():
 
         Returns
         -------
-        :class:`NBurstFitter`
-            A :class:`NBurstFitter` on which the fit can be performed.
+        :class:`NburstFitter`
+            A :class:`NburstFitter` on which the fit can be performed.
         """
         if len(spectra.shape) == 1:
             original_spectra = spectra.reshape(1, spectra.shape[0])
@@ -290,8 +290,8 @@ class NburstFitter():
             (Optional) If set to True, the Nburst input data will be recomputed even if the ``filedir`` and ``prefix`` already exists. Default = False, which means than the function can have no effect if the ``filedir`` and ``prefix`` already exist.
         Returns
         -------
-        :class:`NBurstFitter`
-            A :class:`NBurstFitter` on which the fit can be performed.
+        :class:`NburstFitter`
+            A :class:`NburstFitter` on which the fit can be performed.
         """
         axis, spec = ORCS_cube.extract_integrated_spectrum(region)
         error = estimate_noise(axis, spec, ORCS_cube.get_filter_range())
@@ -311,8 +311,8 @@ class NburstFitter():
             (Optional) the fit_name, if already performed.
         Returns
         -------
-        :class:`NBurstFitter`
-            A :class:`NBurstFitter` on which the fit can be performed.
+        :class:`NburstFitter`
+            A :class:`NburstFitter` on which the fit can be performed.
         """
         spectra, header = io.read_fits(Path(filedir) / prefix+'_data.fits', return_header = True)
         spectra = spectra.T
@@ -332,7 +332,7 @@ class NburstFitter():
 
     def __init__(self, axis, spectra, error, fwhm, header, filedir, prefix, fit_name=None, force = False):
         """
-        Initialize a NBurstFitter instance.
+        Initialize a NburstFitter instance.
         Data should already be in the right format : spectral axis, in a regular wavelength grid, errors and fwhms maps converted to cube, header properly written.
         We recommend to use specified method like `from_sitelle_data` or `from_sitelle_region` instead.
 
@@ -358,8 +358,8 @@ class NburstFitter():
             (Optional) If set to True, the Nburst input data will be recomputed even if the ``filedir`` and ``prefix`` already exists. Default = False, which means than the function can have no effect if the ``filedir`` and ``prefix`` already exist.
         Returns
         -------
-        :class:`NBurstFitter`
-            A :class:`NBurstFitter` on which the fit can be performed.
+        :class:`NburstFitter`
+            A :class:`NburstFitter` on which the fit can be performed.
         """
         self.axis = axis
         self.spectra = np.atleast_2d(spectra)
@@ -557,7 +557,7 @@ class NburstFitter():
 
     def read_result(self, filename=None, force = False):
         """
-        Read the raw NBurst result and convert it to a more natural format, by populating the ``fitted_spectra``, ``idl_result`` and ``bin_table`` attributes of the :class:`NBurstFitter`.
+        Read the raw NBurst result and convert it to a more natural format, by populating the ``fitted_spectra``, ``idl_result`` and ``bin_table`` attributes of the :class:`NburstFitter`.
 
         Parameters
         ----------
@@ -617,9 +617,31 @@ class NburstFitterList():
     """
     This class is a wrapper to fit different spectra, having different fiting inputs (e.g. metallicities or age guess, different parameters...).
 
-    Because running a single :class:`~sitelle.nburst.NBurstFitter` means opening and closing IDL, it would be too fastidious to just build a loop.
-    Instead, this Fitter list concatenates all the Fitters in a single script to run them at once. It works the same way a single NburstFitetr does.
+    Because running a single :class:`NburstFitter` means opening and closing IDL, it would be too fastidious to just build a loop.
+    Instead, this Fitter list concatenates all the Fitters in a single script to run them at once. It works the same way a single :class:`NburstFitter` does.
 
+    Attributes
+    ----------
+    axis : 1D :class:`~numpy:numpy.ndarray`
+        a regular wavelength axis in Angstroms
+    spectra : 2 or 3D :class:`~numpy:numpy.ndarray`
+        spectra of shape [x,z] or [x,y,z], interpolated on the ``axis``
+    error : 2 or 3D :class:`~numpy:numpy.ndarray`
+        an error array of the *same shape* as ``spectra``
+    fwhm : 2 or 3D :class:`~numpy:numpy.ndarray`
+        an fwhm array of the *same shape* as ``spectra``
+    fitted_spectra :  1, 2 or 3D :class:`~numpy:numpy.ndarray`
+        The Nburst-fitted spectra. Same dimension as input ``spectra``
+    idl_result : :class:`~astropy:astropy.io.fits.BinTableHDU`
+        The table in which the parameters are found (returned by ``NBurst``)
+
+    nburst_working_dir : :class:`~path:path.Path`
+        Class attribute. The working directory for nburst, where the library are stored.
+        This is machine dependent and can be updated with the :func:`set_env` function.
+    idl_binary_path : str
+        Class attribute. Location of the idl binary. This is machine dependent and can be updated with the :func:`set_env` function.
+    idl_startup_script : str
+        Class attribute. Path of the script to be executed at startup of IDL, to compile the right libraries. This script should always be stored at ``~/.idl/start.pro``.
     """
 
     nburst_working_dir = Path('/Users/blaunet/Documents/M31/nburst/')
@@ -628,6 +650,14 @@ class NburstFitterList():
 
     @classmethod
     def set_env(cls, machine):
+        '''
+        Sets the right value for ``nburst_working_dir`` and ``idl_binary_path``, depending on the machine. This has been specifically implemented for B. Launet and should be modified when used by others.
+
+        Parameters
+        ----------
+        machine : str
+            hostname of the machine
+        '''
         if machine == 'tycho':
             cls.nburst_working_dir = Path('/obs/blaunet/nburst/')
             cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
@@ -638,6 +668,18 @@ class NburstFitterList():
             pass
 
     def __init__(self, fitters):
+        """
+        Initialize a NburstFitterList instance.
+
+        Parameters
+        ----------
+        fitters : list of :class:`NburstFitter`
+            The different fitters to concatenate.
+        Returns
+        -------
+        :class:`NburstFitterList`
+            A :class:`NburstFitterList` on which the fit can be performed.
+        """
         self.fitters = fitters
         self.axis = self.fitters[0].axis
         self.spectra = np.concatenate([fitter.spectra for fitter in self.fitters], axis=0)
@@ -646,10 +688,24 @@ class NburstFitterList():
 
         self.fitted_spectra = None
     def configure_fit(self, **kwargs):
+        """
+        Configurator for the Nburst fit.
+        The configuration will be applied to all the fitters present in the NburstFitterList.
+        See :func:`NburstFitter.configure_fit` for details about the arguments.
+        """
         for fitter in self.fitters:
             fitter.configure_fit(**kwargs)
 
     def run_each(self, silent = False):
+        """
+        Runs the :class:`NburstFitterList`, once properly configured.
+        Same procedure as :func:`NburstFitter.run_fit` but avoid the trouble to open and close idl each time.
+
+        Parameters
+        ----------
+        silent : bool
+            (Optional) Default False. If True, the output of the subporocess is displayed.
+        """
         env = os.environ
         env['PATH'] = self.idl_binary_path + env['PATH']
         env['IDL_STARTUP'] = self.idl_startup_script
@@ -664,6 +720,14 @@ class NburstFitterList():
 
         self.read_result()
     def read_result(self, force = False):
+        """
+        Read the raw NBurst result and convert it to a more natural format, by populating the ``fitted_spectra`` and ``idl_result`` attributes of the :class:`~sitelle.nburst.NburstFitterList`.
+
+        Parameters
+        ----------
+        force : bool
+            (Optional) If True, we recompute the ``fitted_spectra``, ``idl_result`` and ``bin_table`` attributes even if they are already populated. Default = False.
+        """
         if self.fitted_spectra is not None and force is False:
             return None
         for fitter in self.fitters:
