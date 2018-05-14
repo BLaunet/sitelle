@@ -306,7 +306,7 @@ def guess_source_velocity(spectrum, cube, v_min = -800., v_max = 50., debug=Fals
     """
     Estimation of the velocity shift of a spectrum.
     The position of the max of emission in the spectrum is found, and compared to different lines rest position until a compatible velocity (i.e. included in a given velocity range) is found.
-
+    The obtained guess is discrete in the sense it corresponds to the frame in which the max was found. For better accuracy see :func:`refine_velocity_guess`.
 
     Parameters
     ----------
@@ -336,7 +336,7 @@ def guess_source_velocity(spectrum, cube, v_min = -800., v_max = 50., debug=Fals
 
     See Also
     --------
-    `guess_line_velocity`
+    :func:`guess_line_velocity`
     """
     if lines is None:
         if cube.params.filter_name =='SN2':
@@ -362,6 +362,27 @@ def guess_source_velocity(spectrum, cube, v_min = -800., v_max = 50., debug=Fals
     return guess_line_velocity(max_pos, v_min, v_max, debug=debug, lines=lines, return_line=return_line)
 
 def refine_velocity_guess(spectrum, axis, v_guess, detected_line, return_fit = False):
+    """
+    Refines a velocity guess with better accuracy, avoiding to have discrete guess corresponding to pixel numbers.
+    A gaussian function is fitted to estimate the line position.
+
+    Parameters
+    ----------
+    spectrum : 1D :class:`~numpy:numpy.ndarray`
+        The spectrum containing emission lines
+    axis : 1D :class:`~numpy:numpy.ndarray`
+        The corresponding axis, in wavenumber
+    v_guess : float
+        A first guess on the velocity, typically obtained from :func:`guess_source_velocity`
+    detected_line : str
+        Names of the main line present in the spectrum (as defined `here <http://celeste.phy.ulaval.ca/orcs-doc/introduction.html#list-of-available-lines>`_)
+    return_fit : bool, Default = False
+        (Optional) If True, returns the fit parameters, for further investigation
+    Returns
+    -------
+    v : float
+        The updated velocity guess
+    """
     from orb.utils.spectrum import line_shift, compute_radial_velocity
     from orb.core import Lines
     from astropy.modeling import models, fitting
@@ -382,6 +403,46 @@ def refine_velocity_guess(spectrum, axis, v_guess, detected_line, return_fit = F
         return compute_radial_velocity(fit.mean_1,line_rest, wavenumber=True)
 
 def fit_spectrum(spec, theta, v_guess, cube, lines = None, **kwargs):
+    """
+    Helper function to simplify fitting, with some default parameters being already set.
+    The underlying method is :func:`~ORCS:orcs.core.HDFCube.fit_lines_in_spectrum`.
+
+    Parameters
+    ----------
+    spec : 1D :class:`~numpy:numpy.ndarray`
+        The spectrum containing emission lines
+    theta : float
+        Theta value corresponding to the ``spec``
+    v_guess : float
+        Velocity guess on the spectrum
+    cube : :class:`~ORCS:orcs.process.SpectralCube`
+        The cube from which ``spec`` has been extracted
+    lines : str
+        (Optional) The lines to fit. Default is set to the main lines contained in the filter of the cube. See **sitelle.constants.SN2_LINES** and **sitelle.constants.SN3_LINES**
+    kwargs : dict
+        Any additional argumebnts to be passed to ``_prepare_input_params``.
+        Some are set to default values :
+
+        +---------------+---------------+
+        | Parameter     | Value         |
+        +===============+===============+
+        | fmodel        |'sinc'         |
+        +---------------+---------------+
+        | pos_def       | '1'           |
+        +---------------+---------------+
+        | signal_range  | filter_range  |
+        +---------------+---------------+
+        | pos_cov       | v_guess       |
+        +---------------+---------------+
+        | snr_guess     | 'auto'        |
+        +---------------+---------------+
+        | nofilter      | True          |
+        +---------------+---------------+
+    Returns
+    -------
+    fit :
+        the performed fit
+    """
     if lines is None:
         if cube.params.filter_name =='SN2':
             lines = constants.SN2_LINES
@@ -413,6 +474,29 @@ def fit_spectrum(spec, theta, v_guess, cube, lines = None, **kwargs):
     return fit_lines_in_spectrum(params, inputparams, 1e10, spec, theta, snr_guess=snr_guess, debug=False)
 
 def fit_source(xpos, ypos, cube, v_guess = None, return_v_guess=False, v_min=-800., v_max=100., **kwargs):
+    """
+    Fit a spectrum from a position in the cube.
+    The spectrum is extracted inside a 3x3 pixels box, a guess of the velocity if performed, and the spectrum is fitted using :func:`fit_spectrum`
+
+    Parameters
+    ----------
+    xpos : int
+        abscisse of the source in the cube
+    ypos : int
+        ordonate of the source in the cube
+    cube : :class:`~ORCS:orcs.process.SpectralCube`
+        The cube in which we want to extract and fit the spectrum.
+    v_guess : float
+        (Optional) If None, a guess is performed using :func:`guess_source_velocity`
+    return_v_guess : bool, Default = False
+        (Optional) If True, returns the guessed velocity value.
+    v_min : float
+        (Optional) v_min used by :func:`guess_source_velocity`. Default = -800
+    v_max : float
+        (Optional) v_max used by :func:`guess_source_velocity`. Default = 100
+    kwargs : dict
+        Additional keyword arguments to be passed to :func:`fit_spectrum`
+    """
     xpos = int(xpos)
     ypos = int(ypos)
     a,s = extract_point_source(xpos, ypos, cube)
@@ -431,6 +515,34 @@ def fit_source(xpos, ypos, cube, v_guess = None, return_v_guess=False, v_min=-80
 
 
 def check_fit(source, SN2_ORCS, SN3_ORCS, SN2_detection_frame, SN3_detection_frame, **kwargs):
+    """
+    Convenience function to display a fit and visually check if it is meaningful. The fit is recomputed.
+
+    Parameters
+    ----------
+    source : :class:`~pandas:pandas.Series`
+        A row from a :class:`~pandas:pandas.DataFrame` containing detected sources. Should have columns ``xpos_SN2``, ``ypos_SN2``, ``xpos_SN3``, ``ypos_SN3``.
+    SN2_ORCS : :class:`~ORCS:orcs.process.SpectralCube`
+        The cube taken in SN2 filter.
+    SN3_ORCS : :class:`~ORCS:orcs.process.SpectralCube`
+        The cube taken in SN3 filter.
+    SN2_detection_frame : 2D :class:`~numpy:numpy.ndarray`
+        The SN2 frame on which the source position has been found
+    SN3_detection_frame : 2D :class:`~numpy:numpy.ndarray`
+        The SN3 frame on which the source position has been found
+    kwargs : dict
+        Additional keyword arguments to be passed to :func:`fit_source`
+
+    Returns
+    -------
+    fit_SN2 : dict
+        Fit parameters in SN2 filter
+    fit_SN3 : dict
+        Fit parameters in SN3 filter
+    Note
+    ----
+    The signature is not well constructed yet, and works only with sources defined as a DataFrame, and has to be performed on both cubes (no possibility to check a fit from a single cube)
+    """
     x_SN2, y_SN2 = map(int, source[['xpos_SN2', 'ypos_SN2']])
     x_SN3, y_SN3 = map(int, source[['xpos_SN3', 'ypos_SN3']])
     a_SN2,s_SN2 = extract_point_source(x_SN2, y_SN2,cube = SN2_ORCS)
@@ -476,8 +588,91 @@ def check_fit(source, SN2_ORCS, SN3_ORCS, SN2_detection_frame, SN3_detection_fra
 
 
 def fit_SN2(source, cube, v_guess = None, v_min = -800., v_max = 0., lines=None, return_fit_params = False, kwargs_spec={}, kwargs_bkg = {}, debug=False):
+    """
+    Function specialized to fit sources found in the SN2 cube. The background spectrum is fitted as well.
+    Can be used in a parallel process.
+    The SNR of the spec is estimated using the :func:`stats_without_lines` method.
+    Only the velocity of the background is estimated, as the flux is biased by an unkown amount of absorption.
+
+    Parameters
+    ---------
+    source : :class:`~pandas:pandas.Series`
+        A row from a :class:`~pandas:pandas.DataFrame` containing detected sources. Should have columns ``xpos``, ``ypos``, assumed to correspond to the SN2 pixel coordinates.
+    cube : :class:`~ORCS:orcs.process.SpectralCube`
+        The cube taken in SN2 filter.
+    v_guess : float
+        (Optional) If None, a guess is performed using :func:`guess_source_velocity` and :func:`refine_velocity_guess`
+    v_min : float
+        (Optional) v_min used by :func:`guess_source_velocity`. Default = -800
+    v_max : float
+        (Optional) v_max used by :func:`guess_source_velocity`. Default = 0
+    lines : list of str
+        (Optinal) Names of the lines to fit. If None, **SN2_LINES** are used, except if no v_guess has been found; then we assume it's only a Hbeta line at very fast velocity.
+    return_fit_params : bool, Default = False
+        (Optional) If True, returns the full parameters of the fit.
+    kwargs_spec : dict
+        (Optional) Additional keyword arguments to be used by :func:`fit_spectrum` when fitting the source spectrum.
+    kwargs_bkg : dict
+        (Optional) Additional keyword arguments to be used by :func:`fit_spectrum` when fitting the background spectrum.
+    debug : bool, Default = False
+        (Optional) If True, the velocity guess is verbose.
+
+    Returns
+    -------
+    fit_res : dict
+        A dict containg a lot of information about the fit.
+
+        +--------------------+--------------------------------------------------------------------+
+        | Parameter          | Description                                                        |
+        +====================+====================================================================+
+        | err                | estimated noise value on the spectra                               |
+        +--------------------+--------------------------------------------------------------------+
+        | guess_snr          | SNR guess                                                          |
+        +--------------------+--------------------------------------------------------------------+
+        | exit_status        | code to identify cause of crash                                    |
+        +--------------------+--------------------------------------------------------------------+
+        | v_guess            | guessed velocity in km/s                                           |
+        +--------------------+--------------------------------------------------------------------+
+        | chi2               | chi2 computed on the residual                                      |
+        +--------------------+--------------------------------------------------------------------+
+        | rchi2              | reduced chi2 computed on the residual                              |
+        +--------------------+--------------------------------------------------------------------+
+        | ks_pvalue          | ks test computed on the residuals                                  |
+        +--------------------+--------------------------------------------------------------------+
+        | logGBF             | log Gaussian Bayes Factor on the residuals                         |
+        +--------------------+--------------------------------------------------------------------+
+        | rchi2              | reduced chi2 computed on the residual                              |
+        +--------------------+--------------------------------------------------------------------+
+        | broadening         | broadening estimation of the lines                                 |
+        +--------------------+--------------------------------------------------------------------+
+        | broadening_err     | error on the brodeaning estimation                                 |
+        +--------------------+--------------------------------------------------------------------+
+        | velocity           | estimated velocity                                                 |
+        +--------------------+--------------------------------------------------------------------+
+        | velocity_err       | error on the fitted velocity                                       |
+        +--------------------+--------------------------------------------------------------------+
+        | flux_*             | flux estimation for * line, where * is the line name               |
+        +--------------------+--------------------------------------------------------------------+
+        | flux_*_err         | error on the flux estimation for * line, where * is the line name  |
+        +--------------------+--------------------------------------------------------------------+
+        | snr_*              | Estimated SNR of the * line                                        |
+        +--------------------+--------------------------------------------------------------------+
+        | bkg_v_guess        | guess on the background spectrum velocity                          |
+        +--------------------+--------------------------------------------------------------------+
+        | bkg_exit_status    | code to identify cause of crash                                    |
+        +--------------------+--------------------------------------------------------------------+
+        | bkg_velocity       | estimated velocity of the background spectrum                      |
+        +--------------------+--------------------------------------------------------------------+
+        | bkg_velocity_err   | error on the background velocity estimation                        |
+        +--------------------+--------------------------------------------------------------------+
+
+
+    See Also
+    --------
+    :func:`fit_SN3`
+    """
     fit_res = {}
-    try:
+    try: # Try catch to avoid a stupid crash during a long loop over many sources
         x, y = map(int, source[['xpos', 'ypos']])
 
         big_box = centered_square_region(x,y,30)
@@ -608,6 +803,79 @@ def fit_SN2(source, cube, v_guess = None, v_min = -800., v_max = 0., lines=None,
         return pd.Series(fit_res)
 
 def fit_SN3(source, cube, v_guess = None, lines=None, return_fit_params = False, kwargs_spec={}, kwargs_bkg = {}, debug=False):
+    """
+    Function specialized to fit sources found in the SN3 cube. The background spectrum is not fitted, due to the presence of sky lines that would bias the estimation of the velocity.
+    It looks very similar to :func:`fit_SN2`and the code should be refactored.
+    It differs however in the philosophy behind the velocity estimation : this method has been designed to be performed after a SN2 fit, from which we already estimated the velocity of the source. Thus no guess is performed here.
+
+    The method can be used in a parallel process.
+    The SNR of the spec is estimated using the :func:`stats_without_lines` method.
+
+    Parameters
+    ---------
+    source : :class:`~pandas:pandas.Series`
+        A row from a :class:`~pandas:pandas.DataFrame` containing detected sources. Should have columns ``xpos``, ``ypos``, assumed to correspond to the SN2 pixel coordinates.
+    cube : :class:`~ORCS:orcs.process.SpectralCube`
+        The cube taken in SN3 filter.
+    v_guess : float
+        (Optional) If None, looking for the element ``source['v_guess']``
+    lines : list of str
+        (Optinal) Names of the lines to fit. If None, **SN3_LINES** are used, except if no v_guess has been found; then we assume it's only a Hbeta line at very fast velocity.
+    return_fit_params : bool, Default = False
+        (Optional) If True, returns the full parameters of the fit.
+    kwargs_spec : dict
+        (Optional) Additional keyword arguments to be used by :func:`fit_spectrum` when fitting the source spectrum.
+    kwargs_bkg : dict
+        (Optional) Additional keyword arguments to be used by :func:`fit_spectrum` when fitting the background spectrum.
+    debug : bool, Default = False
+        (Optional) If True, the velocity guess is verbose.
+
+    Returns
+    -------
+    fit_res : dict
+        A dict containg a lot of information about the fit.
+
+        +--------------------+--------------------------------------------------------------------+
+        | Parameter          | Description                                                        |
+        +====================+====================================================================+
+        | err                | estimated noise value on the spectra                               |
+        +--------------------+--------------------------------------------------------------------+
+        | guess_snr          | SNR guess                                                          |
+        +--------------------+--------------------------------------------------------------------+
+        | exit_status        | code to identify cause of crash                                    |
+        +--------------------+--------------------------------------------------------------------+
+        | v_guess            | guessed velocity in km/s                                           |
+        +--------------------+--------------------------------------------------------------------+
+        | chi2               | chi2 computed on the residual                                      |
+        +--------------------+--------------------------------------------------------------------+
+        | rchi2              | reduced chi2 computed on the residual                              |
+        +--------------------+--------------------------------------------------------------------+
+        | ks_pvalue          | ks test computed on the residuals                                  |
+        +--------------------+--------------------------------------------------------------------+
+        | logGBF             | log Gaussian Bayes Factor on the residuals                         |
+        +--------------------+--------------------------------------------------------------------+
+        | rchi2              | reduced chi2 computed on the residual                              |
+        +--------------------+--------------------------------------------------------------------+
+        | broadening         | broadening estimation of the lines                                 |
+        +--------------------+--------------------------------------------------------------------+
+        | broadening_err     | error on the brodeaning estimation                                 |
+        +--------------------+--------------------------------------------------------------------+
+        | velocity           | estimated velocity                                                 |
+        +--------------------+--------------------------------------------------------------------+
+        | velocity_err       | error on the fitted velocity                                       |
+        +--------------------+--------------------------------------------------------------------+
+        | flux_*             | flux estimation for * line, where * is the line name               |
+        +--------------------+--------------------------------------------------------------------+
+        | flux_*_err         | error on the flux estimation for * line, where * is the line name  |
+        +--------------------+--------------------------------------------------------------------+
+        | snr_*              | Estimated SNR of the * line                                        |
+        +--------------------+--------------------------------------------------------------------+
+
+
+    See Also
+    --------
+    :func:`fit_SN2`
+    """
     fit_res = {}
     try:
         x, y = map(int, source[['xpos', 'ypos']])
