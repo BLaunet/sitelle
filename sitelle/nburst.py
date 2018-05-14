@@ -14,10 +14,20 @@ __all__ = ['parameter_map', 'read', 'extract_spectrum', 'sew_spectra', 'NburstFi
 
 def parameter_map(table, param, binMap):
     """
-    Return a 2D map of the given parameter
-    :param table: the BINTable in which the parameters are found
-    :param param: The parameter we want to plot. See table.columns to see the list
-    :param binMap: the 2D map of the binning scheme
+    Displays an estimated parameter on a 2D map
+    Parameters
+    ----------
+    table : :class:`~astropy:astropy.io.fits.BinTableHDU`
+        The table in which the parameters are found (returned by ``NBurst``)
+    param : str
+        The parameter we want to extract. See table.columns to see the list
+    binMap: 2D :class:`~numpy:numpy.ndarray`
+        The 2D map of the binning scheme (e.g. a voronoi map)
+
+    Returns
+    -------
+    `~numpy:numpy.ndarray`
+        The 2D map of the parameter
     """
     def f(binNumber):
         return table[param][binNumber]
@@ -26,8 +36,15 @@ def parameter_map(table, param, binMap):
 def read(filename):
     """
     Reads results from NBurst
-    :param filename: the file to read
-    :return: the bin_table, the fit_table
+
+    Parameters
+    ----------
+    filename : str
+        the file path to read
+    Return
+    ------
+    tuple
+        the bin_table and fit_table created by ``Nburst``
     """
     hdu = fits.open(filename)
     bin_table = hdu[1].data
@@ -37,10 +54,17 @@ def read(filename):
 
 def extract_spectrum(fit_table, binNumber):
     """
-    Get the fitted spectrum from a fit8table at a given binNumber
-    :param fit_table: the fit_table containg the results
-    :param binNumber: the binNumber
-    :return: the wavelength axis (in Angstroms) and fitted spectrum
+    Get the ``NBurst`` fitted spectrum for a given bin number.
+    Parameters
+    ----------
+    fit_table :
+        the fit_table containg the fitted spectra
+    binNumber : int
+        the binNumber
+    Returns
+    -------
+    tuple of :class:`~numpy:numpy.ndarray`
+        the wavelength axis (in Angstroms) and fitted spectrum
     """
     axis = fit_table['WAVE'][binNumber,:]
     fit = fit_table['FIT'][binNumber,:]
@@ -49,10 +73,19 @@ def extract_spectrum(fit_table, binNumber):
 def sew_spectra(left, right):
     """
     Sew 2 spectra fitter together.
-    In between, we put a mean value for data & fwhm, and 10x the worst error for the error
-    :prama left: left spectra fitter
-    :param right: right spectra fitter
-    :return: a NburstFitter instance containing the 2 spectra
+    This is used to fit the data from two filters simultaneously.
+    In between the two, we put a mean value for data & fwhm, and 10x the worst error for the error.
+
+    Parameters
+    ----------
+    left : :class:`~sitelle.nburst.NBurstFitter`
+        left spectra fitter
+    right : :class:`~sitelle.nburst.NBurstFitter`
+        right spectra fitter
+    Returns
+    -------
+    :class:`~sitelle.nburst.NBurstFitter`
+        a NburstFitter instance containing the 2 spectra
     """
     if left.spectra.shape[:-1] != right.spectra.shape[:-1]:
         raise ValueError('Left and right spectra should have the same spatial dimension. Got %s and %s'%(left.spectra.shape[:-1],right.spectra.shape[:-1]))
@@ -102,6 +135,43 @@ class NburstFitter():
     This class is a helper to fit spectra with Nburst directly from python.
     It stores data as expected by Nburst, configure a script with user-defined parameters, runs it and reads the results.
 
+    Attributes
+    ----------
+    axis : 1D :class:`~numpy:numpy.ndarray`
+        a regular wavelength axis in Angstroms
+    spectra : 2 or 3D :class:`~numpy:numpy.ndarray`
+        spectra of shape [x,z] or [x,y,z], interpolated on the ``axis``
+    error : 2 or 3D :class:`~numpy:numpy.ndarray`
+        an error array of the *same shape* as ``spectra``
+    fwhm : 2 or 3D :class:`~numpy:numpy.ndarray`
+        an fwhm array of the *same shape* as ``spectra``
+    header : str
+        a header describing the data. Should match spectra shape : [NAXIS1, NAXIS2, NAXIS3] <=> [x,y,z]
+    filedir : str
+        the folder where the NburstFitter data should be stored
+    prefix : str
+        a prefix for this fitter.
+    fit_name : str
+        (Optional) the fit_name, if already performed.
+    fit_params : dict
+        Parameters for the nburst fit
+    force : bool
+        (Optional) If set to True, the Nburst input data will be recomputed even if the ``filedir`` and ``prefix`` already exists. Default = False, which means than the function can have no effect if the ``filedir`` and ``prefix`` already exist.
+    idl_result : :class:`~astropy:astropy.io.fits.BinTableHDU`
+        The table in which the parameters are found (returned by ``NBurst``)
+    fitted_spectra :  1, 2 or 3D :class:`~numpy:numpy.ndarray`
+        The Nburst-fitted spectra. Same dimension as input ``spectra``
+    bin_table : 2D :class:`~numpy:numpy.ndarray`
+        The binning scheme used by NBurst
+
+    nburst_working_dir : :class:`~path:path.Path`
+        Class attribute. The working directory for nburst, where the library are stored.
+        This is machine dependent and can be updated with the :func:`set_env` function.
+    idl_binary_path : str
+        Class attribute. Location of the idl binary. This is machine dependent and can be updated with the :func:`set_env` function.
+    idl_startup_script : str
+        Class attribute. Path of the script to be executed at startup of IDL, to compile the right libraries. This script should always be stored at ``~/.idl/start.pro``.
+
     """
 
     nburst_working_dir = Path('/Users/blaunet/Documents/M31/nburst/')
@@ -111,8 +181,12 @@ class NburstFitter():
     @classmethod
     def set_env(cls, machine):
         '''
-        Sets some path for idl/nburst. Implemented only for barth usage
-        :param machine: hostname of the machine
+        Sets the right value for ``nburst_working_dir`` and ``idl_binary_path``, depending on the machine. This has been specifically implemented for B. Launet and should be modified when used by others.
+
+        Parameters
+        ----------
+        machine : str
+            hostname of the machine
         '''
         if machine == 'tycho':
             cls.nburst_working_dir = Path('/obs/blaunet/nburst/')
@@ -127,15 +201,32 @@ class NburstFitter():
     def from_sitelle_data(cls, axis, spectra, error, fwhm, ORCS_cube, filedir, prefix, force = False):
         """
         This function converts sitelle data to be fitted by Nburst.
-        It interpolates a spectra onto a regular wavelength grid, and creates error and fwhm spectra as well.
+        It interpolates a spectra onto a regular wavelength grid, and creates error and fwhm "spectra" as well (by extending maps in the spectral direction).
         Spectra, error and fwhm should have the same **spatial** dimensions (x or x,y)
-        :param axis: spectral axis of the cube, in wavenumber [cm-1]
-        :param spectra: a 1,2 or 3D spectra dim=[x,y,z]
-        :param error: an error array of the same spatial dim as the spectra ([x,y] if spectra is [x,y,z]), i.e one error per pixel
-        :param fwhm: a fwhm array of the same spatial dim as the spectra ([x,y] if spectra is [x,y,z]), i.e one fwhm per pixel
-        :param ORCS_cube: the SpectralCube from which the spectra is exatracted
-        :param filedir: the folder where the NburstFitter should be stored
-        :param prefix: a prefix for this data
+
+        Parameters
+        ----------
+        axis : 1D :class:`~numpy:numpy.ndarray`
+            Axis of the spectrum [cm-1]
+        spectra : 1,2 3D :class:`~numpy:numpy.ndarray`
+            The spectra to be fitted. It can be a one dimesion ([z]), two dimensions ([x,z]) or three dimensions ([x,y,z]).
+        error : 1 or 2D :class:`~numpy:numpy.ndarray`
+            an error array of the same spatial dim as the spectra ([x,y] if spectra is [x,y,z]), i.e one error per pixel
+        fwhm : 1 or 2D :class:`~numpy:numpy.ndarray`
+            a fwhm array of the same spatial dim as the spectra ([x,y] if spectra is [x,y,z]), i.e one fwhm per pixel
+        ORCS_cube : :class:`~ORCS:orcs.process.SpectralCube`
+            The SpectralCube from which the spectra are exatracted
+        filedir : str
+            the folder where the NburstFitter data should be stored
+        prefix : str
+            a prefix for this fitter.
+        force : bool
+            (Optional) If set to True, the Nburst input data will be recomputed even if the ``filedir`` and ``prefix`` already exists. Default = False, which means than the function can have no effect if the ``filedir`` and ``prefix`` already exist.
+
+        Returns
+        -------
+        :class:`NBurstFitter`
+            A :class:`NBurstFitter` on which the fit can be performed.
         """
         if len(spectra.shape) == 1:
             original_spectra = spectra.reshape(1, spectra.shape[0])
@@ -183,12 +274,24 @@ class NburstFitter():
     @classmethod
     def from_sitelle_region(cls, region, ORCS_cube, filedir, prefix, force = False):
         """
-        Generate the right parameters to generate a Nburst fittable cube from a region in a SITELLE datacube
-        :param region: the region to study
-        :param ORCS_cube: SpectralSuce instance
-        :param filedir: the file directory where to store the cube
-        :param prefix: prefix of this cube
-        :param force: (Default False) : force top overwrite an already existing cube with the same name
+        Generate the right parameters (spectra, error, fwhm) to create a Nburst fittable cube from an *integrated* region in a SITELLE datacube. It's a wrapper around `from_sitelle_data`.
+
+        Parameters
+        ----------
+        region : tuple of :class:`~numpy:numpy.ndarray`.
+            The region to study, in the same format understood by ORCS i.e. the results from ``np.nonzero(mask)`` for example.
+        ORCS_cube : :class:`~ORCS:orcs.process.SpectralCube`
+            The SpectralCube from which the spectra are exatracted
+        filedir : str
+            the folder where the NburstFitter data should be stored
+        prefix : str
+            a prefix for this fitter.
+        force : bool
+            (Optional) If set to True, the Nburst input data will be recomputed even if the ``filedir`` and ``prefix`` already exists. Default = False, which means than the function can have no effect if the ``filedir`` and ``prefix`` already exist.
+        Returns
+        -------
+        :class:`NBurstFitter`
+            A :class:`NBurstFitter` on which the fit can be performed.
         """
         axis, spec = ORCS_cube.extract_integrated_spectrum(region)
         error = estimate_noise(axis, spec, ORCS_cube.get_filter_range())
@@ -198,9 +301,18 @@ class NburstFitter():
     def from_previous(cls, filedir, prefix, fit_name = None):
         """
         Reload a NburstFitter that had been created previously, based on its filedir and prefix.
-        :param filedir: the folder where the data is stored
-        :param prefix: the prefix of this data
-        :param fit_name: (optional) the fit_name, if already performed
+        Parameters
+        ----------
+        filedir : str
+            the folder where the NburstFitter data should be stored
+        prefix : str
+            a prefix for this fitter.
+        fit_name : str
+            (Optional) the fit_name, if already performed.
+        Returns
+        -------
+        :class:`NBurstFitter`
+            A :class:`NBurstFitter` on which the fit can be performed.
         """
         spectra, header = io.read_fits(Path(filedir) / prefix+'_data.fits', return_header = True)
         spectra = spectra.T
@@ -217,24 +329,37 @@ class NburstFitter():
 
         return cls(axis, spectra, errors, fwhms, header, filedir, prefix, fit_name)
 
-    # @classmethod
-    # def from_single_spectra(cls, axis, spectra, error, fwhm, header, filedir, prefix):
-    #     spectra = spectra.reshape(1, spectra.shape[0])
-    #     error = error.reshape(1, error.shape[0])
-    #     fwhm = fwhm.reshape(1, fwhm.shape[0])
-    #     return cls(axis, spectra, error, fwhm, header, filedir, prefix)
 
     def __init__(self, axis, spectra, error, fwhm, header, filedir, prefix, fit_name=None, force = False):
         """
-        Initialize a NBurstFitter instance
-        :param axis: a regular wavelength axis in Angstroms
-        :param spectra: a 1,2 or 3D spectra of shape [z], [y,z] or [x,y,z]
-        :param error: an error array of the same shape as spectra
-        :param fwhm: an fwhm array of the same shape as spectra
-        :param header: a header describing the data. Should match spectra shape : [NAXIS1, NAXIS2, NAXIS3] <=> [x,y,z]
-        :param filedir: the folder where the data should be stored
-        :param prefix: the prefix for this data
-        :param fit_name: (optional)
+        Initialize a NBurstFitter instance.
+        Data should already be in the right format : spectral axis, in a regular wavelength grid, errors and fwhms maps converted to cube, header properly written.
+        We recommend to use specified method like `from_sitelle_data` or `from_sitelle_region` instead.
+
+        Parameters
+        ----------
+        axis : 1D :class:`~numpy:numpy.ndarray`
+            a regular wavelength axis in Angstroms
+        spectra : 2 or 3D :class:`~numpy:numpy.ndarray`
+            spectra of shape [x,z] or [x,y,z], interpolated in the ``axis``
+        error : 2 or 3D :class:`~numpy:numpy.ndarray`
+            an error array of the *same shape* as ``spectra``
+        fwhm : 2 or 3D :class:`~numpy:numpy.ndarray`
+            an fwhm array of the *same shape* as ``spectra``
+        header : str
+            a header describing the data. Should match spectra shape : [NAXIS1, NAXIS2, NAXIS3] <=> [x,y,z]
+        filedir : str
+            the folder where the NburstFitter data should be stored
+        prefix : str
+            a prefix for this fitter.
+        fit_name : str
+            (Optional) the fit_name, if already performed.
+        force : bool
+            (Optional) If set to True, the Nburst input data will be recomputed even if the ``filedir`` and ``prefix`` already exists. Default = False, which means than the function can have no effect if the ``filedir`` and ``prefix`` already exist.
+        Returns
+        -------
+        :class:`NBurstFitter`
+            A :class:`NBurstFitter` on which the fit can be performed.
         """
         self.axis = axis
         self.spectra = np.atleast_2d(spectra)
@@ -263,6 +388,9 @@ class NburstFitter():
         self.template_path = self.nburst_working_dir / 'template.pro'
 
     def _save_input(self, filedir=None, prefix=None):
+        """
+        Save the data in the proper directory structure and naming.
+        """
         if filedir is None:
             if self.filedir is None:
                 raise ValueError('You have to provide a valid directory for the data')
@@ -286,6 +414,42 @@ class NburstFitter():
         io.write_fits(self.filedir / self.prefix+'_error.fits', self.error.T, swaped_header, overwrite=True)
 
     def configure_fit(self, fit_name=None, **kwargs):
+        """
+        Configurator for the Nburst fit.
+        These function writes a procedure file for IDL containing all the fitting parameters we want to be set.
+        They are all optionals, in which case default value are used.
+
+        Parameters
+        ----------
+        silent : bool
+            If True, nothing is displayed during the fit (Default = False)
+        lmin : int
+            The lower wavelength limit on which the fit has to be performed
+        lmax : int
+            The upper wavelength limit on which the fit has to be performed
+        vorbin : bool
+            If True, a voronoi tessellation is performed on the data. Only works with 3D datacubes. (Default = False) If True, ``SN`` has to be defined as well.
+        SN : int
+            The signal to noise ratio to use for the voronoi tessellation. ``vorbin`` has to be set to True.
+        exclreg : 'default' or list of float
+            Exclusion regions to be ommitted during the fit, in Angstroms. Typically concern emission lines region. 'default' uses the main emission lines as defined in :py:data:`sitelle.constants.SN2_LINES` and :py:data:`sitelle.constants.SN3_LINES`
+        mdegree : int
+            Degree of the polynomial to be used (Default = 7)
+        vsys : float
+            Velocity guess in km/s. Default : -300 km/s
+        sig_guess : float
+            Velocity dispersion guess in km/s. Default = 100 km/s
+        age_guess : float
+            Age guess in Myr. Default = 15000
+        met_guess : float
+            Metallicity guess. Default = 0.
+        fixpar : list of int
+            Defines if parameters are fixed or not. The order is [vsys, sigma, age, met]. 0 standas for False (i.e. free) and 1 for True (i.e. fixed). For exmaple, to fix the velocity while letting the rest free, fixpar=[1,0,0,0]
+        lsf : str
+            Line shape function to use. If 'SINC', a cardinal sine is used. Else, the defaulkt gauss-hermite function is used.
+        stell_lib : {'ELODIE', 'MILES'}
+            The stellar library to use to create the SSP. Default = 'ELODIE'
+        """
         if fit_name is None:
             if self.fit_name is None:
                 raise ValueError('Please provide a name for this fit configuration')
@@ -297,14 +461,14 @@ class NburstFitter():
         self.fit_params['errfile'] = str(self.filedir / self.prefix+ '_error.fits')
         self.fit_params['fwhmfile'] = str(self.filedir / self.prefix+ '_fwhm.fits')
         self.fit_params['result_file'] = str(self.filedir / self.prefix+'_'+self.fit_name+'_fitted.fits')
-        try:
+        try: # If we are dealing with a 3D cube
             nx, ny, nz = self.spectra.shape
             self.fit_params['nx'] = nx
             self.fit_params['nz'] = nz
             self.fit_params['ny'] = ny
             self.fit_params['read3d'] = True
             self.fit_params['xsize'] = ny
-        except ValueError:
+        except ValueError: # Else it's 2D
             nx, nz = self.spectra.shape
             self.fit_params['nx'] = nx
             self.fit_params['nz'] = nz
@@ -368,6 +532,15 @@ class NburstFitter():
             out.writelines(template)
 
     def run_fit(self, silent = False):
+        """
+        Runs the NburstFitter, once properly configured.
+        It spawns a subprocess and call IDL on the previously configured script.
+
+        Parameters
+        ----------
+        silent : bool
+            (Optional) Default False. If True, the output of the subporocess is displayed.
+        """
         env = os.environ
         env['PATH'] = self.idl_binary_path + env['PATH']
         env['IDL_STARTUP'] = self.idl_startup_script
@@ -383,6 +556,16 @@ class NburstFitter():
         self.read_result()
 
     def read_result(self, filename=None, force = False):
+        """
+        Read the raw NBurst result and convert it to a more natural format, by populating the ``fitted_spectra``, ``idl_result`` and ``bin_table`` attributes of the :class:`NBurstFitter`.
+
+        Parameters
+        ----------
+        filename : str
+            (Optional) The full path to the fitted result file. Default to 'filedir'/'prefix'_'fit_name'_fitted.fits
+        force : bool
+            (Optional) If True, we recompute the ``fitted_spectra``, ``idl_result`` and ``bin_table`` attributes even if they are already populated. Default = False.
+        """
         if self.fitted_spectra is not None and force is False:
             return None
         if filename is None:
@@ -411,11 +594,33 @@ class NburstFitter():
         # self.idl_result = fits.FITS_rec.from_columns(coldefs)
 
     def extract_spectrum(self, binNumber):
+        """
+        Extract the fitted spectra in a given bin.
+
+        Parameters
+        ----------
+        binNumber : int
+            The number of the bin.
+
+        Returns
+        -------
+        axis : 1D :class:`~numpy:numpy.ndarray`
+            The corresponding axis, in Angstroms
+        fit :  1D :class:`~numpy:numpy.ndarray`
+            The fitted spectra
+        """
         axis = self.idl_result['WAVE'][binNumber,:]
         fit = self.idl_result['FIT'][binNumber,:]
         return axis,fit
 
 class NburstFitterList():
+    """
+    This class is a wrapper to fit different spectra, having different fiting inputs (e.g. metallicities or age guess, different parameters...).
+
+    Because running a single :class:`~sitelle.nburst.NBurstFitter` means opening and closing IDL, it would be too fastidious to just build a loop.
+    Instead, this Fitter list concatenates all the Fitters in a single script to run them at once. It works the same way a single NburstFitetr does.
+
+    """
 
     nburst_working_dir = Path('/Users/blaunet/Documents/M31/nburst/')
     idl_binary_path = "/usr/local/idl/idl/bin:/usr/local/idl/idl/bin/bin.darwin.x86_64:"
