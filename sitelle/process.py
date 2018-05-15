@@ -8,7 +8,7 @@ else:
     class SpectralCube(object):
         pass
 
-    
+
 import logging
 import numpy as np
 import orb
@@ -208,7 +208,7 @@ class SpectralCubePatch(SpectralCube):
                                       return_gvar=False,
                                       output_axis=None):
         """
-        Overloads :func:`ORCS:orcs.core._extract_spectra_from_region`,
+        Overloads :func:`ORCS:orcs.core.HDFCube._extract_spectrum_from_region`,
         to make use of :func:`_extract_spectra_from_region`.
         """
         if median:
@@ -284,7 +284,7 @@ class SpectralCubePatch(SpectralCube):
         with :math:`I`, the image, :math:`S` the spectral cube, :math:`F` the
         filter function.
 
-        Contrary to :func:`ORCS:orcs.core.integrate`, it uses the correctly wavelength calibrated spectra.
+        Contrary to :func:`ORCS:orcs.process.SpectralCube.integrate`, it uses the correctly wavelength calibrated spectra.
 
         Parameters
         ----------

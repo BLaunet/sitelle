@@ -16,6 +16,8 @@ scripts/AnneLaure/*
 !docs
 docs/_build
 docs/_static
-docs/api
+
+docs/api/*
+!docs/api/sitelle.process*
 
 cython_version.py

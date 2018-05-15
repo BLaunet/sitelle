@@ -36,7 +36,8 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.mathjax',
               'sphinx.ext.napoleon',
               'sphinx_automodapi.automodapi',
-              'sphinx.ext.intersphinx']
+              'sphinx.ext.intersphinx',
+              'sphinx_automodapi.smart_resolver']
 
 intersphinx_mapping = {'numpy': ('https://docs.scipy.org/doc/numpy/', None),
                        'astropy': ('http://docs.astropy.org/en/stable/', None),
