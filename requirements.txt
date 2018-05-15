@@ -9,3 +9,4 @@ numpy==1.14.2
 nbsphinx==0.3.3
 pandoc
 jupyter_client
+ipython

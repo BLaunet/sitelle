@@ -38,7 +38,8 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx_automodapi.automodapi',
               'sphinx.ext.intersphinx',
               'sphinx_automodapi.smart_resolver',
-              'nbsphinx']
+              'nbsphinx',
+              'IPython.sphinxext.ipython_console_highlighting']
 
 intersphinx_mapping = {'numpy': ('https://docs.scipy.org/doc/numpy/', None),
                        'astropy': ('http://docs.astropy.org/en/stable/', None),
