@@ -9,36 +9,68 @@
 Welcome to sitelle package documentation!
 *****************************************
 
-This package holds a few convenient methods to be used with `ORCS <http://132.203.11.199/orcs-doc/index.html>`_
-and `ORBS <http://132.203.11.199/orcs-doc/index.html>`_ packages.
-The main feature is its nburst module, that enables the fit of SITELLE spectra
-with Nburts directly.
-The installation of Nburst has to be done separately.
+This package is a helper module designed for the analysis of M31 datacubes taken by SITELLE instrument.
+
+It is mainly a prototype and has been developed for the specific reduction and analysis of Andromeda observations in the SN2 and SN3 filters.
+
+.. warning::
+   Even if the development is as generic as possible, some functions are specifically coded for M31 in the SN2 and SN3 filters and **should not be used as is for other observations**.
+
+The package heavily relies on the `ORCS <http://132.203.11.199/orcs-doc/index.html>`_
+and `ORB <http://132.203.11.199/orb-doc/index.html>`_ packages, and extends them in some way.
+
+Most notable points are :
+   * Algorithm of source detection and fitting
+   * Interfacing with `Nburst method <https://arxiv.org/abs/0709.3047>`_ for galaxy continuum fitting
+
+Installation
+------------
+
+The lastest version of the package is hosted on `pypi <https://pypi.org>`_ and can be installed with::
+
+   pip install sitelle
+
+Sitelle has the following strict requirements:
+
+* `Python <http://www.python.org/>`_ 2.7
+* `ORCS <http://132.203.11.199/orcs-doc/index.html>`_
+* `ORB <http://132.203.11.199/orb-doc/index.html>`_
+* `Numpy <http://www.numpy.org/>`_
+
+Some specific tasks also rely on:
+
+* `Astropy <http://astropy.org>`_
+* `Photutils <http://photutils.readthedocs.io/en/stable/>`_
+* `Matplotlib <http://matplotlib.org/>`_
+* `Pandas <http://pandas.pydata.org>`_
+* `Nburst <https://arxiv.org/abs/0709.3047>`_
+
+User documentation
+------------------
+.. toctree::
+   :maxdepth: 1
+
+   sources_example.ipynb
+   nburst_example.ipynb
 
 
-******************
-User Documentation
-******************
 
-Getting Started
----------------
-
-Modules documentation
----------------------
+Modules specific documentation
+------------------------------
 
 .. toctree::
    :maxdepth: 1
 
-   nburst
-   process
-   plot
-   parallel
-   region
-   source
-   utils
-   fit
-   constants
-   calibration
+   modules/nburst
+   modules/process
+   modules/plot
+   modules/parallel
+   modules/region
+   modules/source
+   modules/utils
+   modules/fit
+   modules/constants
+   modules/calibration
 
 Publications
 ------------
