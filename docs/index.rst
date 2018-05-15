@@ -40,13 +40,9 @@ Modules documentation
    constants
    calibration
 
+Publications
+------------
 
-
-
-*****
-Index
-*****
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+This package has been used in the following works :
+   * :download:`Master Thesis <_static/Master_Thesis_BLaunet.pdf>` of Barthélémy Launet, ETH Zürich
+   * :download:`Poster <_static/EWASS_poster.pdf>` presentend at EWASS 2018 in Liverpool, Barthélémy Launet & Anne-Laure Melchior

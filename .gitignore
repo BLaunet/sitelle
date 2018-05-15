@@ -14,8 +14,9 @@
 scripts/AnneLaure/*
 
 !docs
+!docs/_static
 docs/_build
-docs/_static
+
 
 docs/api/*
 !docs/api/sitelle.process*
