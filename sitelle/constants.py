@@ -27,7 +27,7 @@ SN2_LINES = ['Hbeta', '[OIII]4959', '[OIII]5007']
 SN3_LINES = ['[NII]6548', 'Halpha','[NII]6583', '[SII]6716', '[SII]6731']
 
 if 'MacBookAirdeBarthelemy' in socket.gethostname():
-    FITS_DIR = Path('/home/blaunet/Documents/M31/fits/')
+    FITS_DIR = Path('/Users/Barth//Documents/M31/fits/')
 
 if 'johannes' in socket.gethostname() or 'tycho' in socket.gethostname():
     FITS_DIR = Path('/data/blaunet/fits/')

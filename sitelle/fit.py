@@ -1,18 +1,23 @@
-from orb.fit import Lines
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import gvar
+import logging
+
+from astropy.stats import sigma_clipped_stats
+
 from scipy.interpolate import UnivariateSpline
 from scipy.optimize import curve_fit
-from orcs.utils import fit_lines_in_spectrum
+
+from orb.fit import Lines
 from orb.utils.spectrum import line_shift, compute_radial_velocity
-import gvar
-from sitelle.region import centered_square_region
-import logging
-from sitelle.source import extract_point_source
-from sitelle import constants
 from orb.utils.vector import smooth
-from astropy.stats import sigma_clipped_stats
-import matplotlib.pyplot as plt
+
+from orcs.utils import fit_lines_in_spectrum
+
+from sitelle.region import centered_square_region
+from sitelle.source import extract_point_source
+from sitelle.constants import SN2_LINES, SN3_LINES
 from sitelle.utils import stats_without_lines
 from sitelle.plot import *
 
@@ -445,9 +450,9 @@ def fit_spectrum(spec, theta, v_guess, cube, lines = None, **kwargs):
     """
     if lines is None:
         if cube.params.filter_name =='SN2':
-            lines = constants.SN2_LINES
+            lines = SN2_LINES
         elif cube.params.filter_name == 'SN3':
-            lines = constants.SN3_LINES
+            lines = SN3_LINES
         else:
             raise NotImplementedError()
 
@@ -717,10 +722,8 @@ def fit_SN2(source, cube, v_guess = None, v_min = -800., v_max = 0., lines=None,
                 v_guess, l = guess_source_velocity(s, cube, v_min = -np.inf, v_max = np.inf, lines=['Hbeta'], debug=debug, return_line=True)
                 lines = ['Hbeta']
             try:
-                logging.info('V_guess before refine %s'%v_guess)
                 coeff = np.nanmax(spec)
                 v_guess = refine_velocity_guess(spec/coeff, axis, v_guess, l)
-                logging.info('V_guess after refine %s'%v_guess)
             except Exception as e:
                 pass
             fit_res['v_guess'] = v_guess
@@ -732,9 +735,7 @@ def fit_SN2(source, cube, v_guess = None, v_min = -800., v_max = 0., lines=None,
             kwargs_spec['pos_cov'] = v_guess
 
             cube._prepare_input_params(lines, nofilter=True, **kwargs_spec)
-            fit_params = fit_lines_in_spectrum(cube.params, cube.inputparams, cube.fit_tol,
-                                                s, theta_orig,
-                                                snr_guess=err,  debug=debug)
+            fit_params = fit_lines_in_spectrum(cube.params, cube.inputparams, cube.fit_tol,s, theta_orig,snr_guess=err,  debug=debug)
             # fit_params = cube._fit_lines_in_spectrum(s, theta_orig, snr_guess=err)
 #             _,_,fit_params = cube.fit_lines_in_integrated_region(centered_square_region(x,y,3), SN2_LINES,
 #                                                               nofilter=True, snr_guess=err,
@@ -769,10 +770,8 @@ def fit_SN2(source, cube, v_guess = None, v_min = -800., v_max = 0., lines=None,
             lines = ['[OIII]5007']
             v_guess, l = guess_source_velocity(bkg_spec, cube, lines=lines, force=True, return_line=True)
             try:
-                logging.info('V_guess before refine %s'%v_guess)
                 coeff = np.nanmax(bkg_spec)
                 v_guess = refine_velocity_guess(bkg_spec/coeff, a, v_guess, l)
-                logging.info('V_guess after refine %s'%v_guess)
             except Exception as e:
                 pass
             fit_res['bkg_v_guess'] = v_guess
