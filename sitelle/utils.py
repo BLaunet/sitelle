@@ -1,14 +1,30 @@
+"""
+Module grouping a bunch of utility functions used throughout the package.
+"""
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 import orb
+
+__all__ = ['estimate_noise', 'gen_wavelength_header', 'read_wavelength_axis', 'rebin', 'regular_wl_axis', 'wavelength_regrid', 'nm_to_cm1', 'swap_header_axis', 'filter_star_list', 'measure_dist', 'get_star_list', 'stats_without_lines']
 def estimate_noise(full_axis, full_spectrum, filter_lims, side='both'):
     '''
     Estimates the noise in an integrated spectra from sitelle, by measuring it outside of the filter range.
-    :param full_axis: full wavenumber axis of the cube
-    :param full_spectrum: spectrum on this full axis
-    :param filter_lims: limits of the filter range (in wavenumber)
-    :param side: (optional) if 'right' ('left'), only the right (left) side of the filter is considered. Default to 'both'
-    :return: the standard deviaition of the noise outside the filter range
+
+    Parameters
+    ----------
+    full_axis : 1D :class:`~numpy:numpy.ndarray`
+        complete wavenumber axis of the cube
+    full_spectrum : 1D :class:`~numpy:numpy.ndarray`
+        spectrum on this full axis
+    filter_lims : tuple of floats
+        limits of the filter range (in wavenumber)
+    side : str
+        (Optional) if 'right' ('left'), only the right (left) side of the filter is considered. Default to 'both'
+
+    Returns
+    -------
+    std : float
+        the standard deviaition of the signal outside the filter range, i.e. basically noise
     '''
     imin,imax = np.searchsorted(full_axis,filter_lims)
     if side is 'right':
@@ -21,15 +37,23 @@ def estimate_noise(full_axis, full_spectrum, filter_lims, side='both'):
         raise ValueError(side)
     return np.std(noise)
 
-
-
 def gen_wavelength_header(h, axis, ax_num = 3):
     """
     Generates a FITS wavelength header in Ansgtroms
-    :param h: the header to update
-    :param axis: the regular wavelength axis (numpy array or list)
-    :param ax_num: (Default 3) The axis number to use in the header
-    :return: the updated header
+
+    Parameters
+    ----------
+    h : dict
+        The header to update
+    axis : 1D :class:`~numpy:numpy.ndarray`
+        The regular wavelength axis
+    ax_num : int
+        (Optional) The axis number to use in the header for the spectral dimmension. Default = 3
+
+    Returns
+    -------
+    h : dict
+        Updated header
     """
     h['NAXIS%d'%ax_num] = len(axis)
     h['CRPIX%d'%ax_num] = 1
@@ -42,15 +66,41 @@ def gen_wavelength_header(h, axis, ax_num = 3):
 def read_wavelength_axis(header, axis):
     """
     Generates the right wavelength axis from a FITS header
-    :param header: the header to consider
-    :param axis: the number of the axis on which the wavelength axis is stored in the header
-    :return: a numpy array describing the waveklength axis
+
+    Parameters
+    ----------
+    header : dict
+        The header to update
+    axis: int
+        Index of the axis on which the wavelength axis is stored in the header
+
+    Returns
+    -------
+    axis : 1D :class:`~numpy:numpy.ndarray`
+        The parsed wavelength axis
     """
     offset = 1-header['CRPIX'+str(axis)]
     grid =  np.arange(offset,header['NAXIS'+str(axis)] + offset)*header['CDELT'+str(axis)]
     return header['CRVAL'+str(axis)] + grid
 
 def rebin(map, binsize, type):
+    """
+    Method used to rebin a map. For a regular map, the mean is used. For error maps, the RMS is preffered
+
+    Parameters
+    ----------
+    map : 2D :class:`~numpy:numpy.ndarray`
+        The original map
+    binsize : int
+        Binning to use.
+    type : str
+        if type == 'ERR', the RMS is used; else the mean is used.
+
+    Returns
+    -------
+    binned_map : 2D :class:`~numpy:numpy.ndarray`
+        The binned data
+    """
     xsize, ysize = map.shape[:2]
     new_xsize = xsize//binsize if xsize % binsize == 0 else xsize//binsize + 1
     new_ysize = ysize//binsize if ysize % binsize == 0 else ysize//binsize + 1
@@ -67,9 +117,18 @@ def rebin(map, binsize, type):
 def regular_wl_axis(axis, xlims=None):
     """
     Converts a wavenumber axis ([cm-1]) into a regular (==equally spaced) wavelength axis ([Angstroms])
-    :param axis: the input axis in cm-1
-    :param xlims: optional : limits in cm-1 to reduce the range of the axis (typically : filter range)
-    :return reg_axis: a regular axis in Angstroms
+
+    Parameters
+    ----------
+    axis : 1D :class:`~numpy:numpy.ndarray`
+        Input axis in cm-1
+    xlims : tuple of floats
+        (Optional) limits in cm-1 to reduce the range of the axis (typically : filter range)
+
+    Returns
+    -------
+    reg_axis : 1D :class:`~numpy:numpy.ndarray`
+        a regular axis in Angstroms
     """
     irreg_axis = 1e8/axis
     reg_axis = np.linspace(irreg_axis[0], irreg_axis[-1], axis.shape[0] )
@@ -86,6 +145,23 @@ def regular_wl_axis(axis, xlims=None):
     return reg_axis
 
 def wavelength_regrid(cube, rebinned, only_bandpass, type, header=None):
+    """
+    Interpolation of a 3D datacube on a regular wavelength axis.
+
+    Parameters
+    ----------
+    cube : :class:`~ORCS:orcs.process.SpectralCube`
+        Input SpectralCube
+    rebinned : 3D :class:`~numpy:numpy.ndarray`
+        A cube of data taken from cube (can be fwhm or error or flux)
+    only_bandpass : bool, Default = False
+        If True, data is cut outside of the bandpass of the filter
+    type : 'FWHM' or 'ERR'
+        Defines different behaviors depending on the type of data
+    header : dict
+        (Optional) Default is SpectraLCube header
+
+    """
     ## CREATION OF THE NEW AXIS
     base_axis = cube.params.base_axis.astype(float)
     irreg_axis = 1e8/base_axis
@@ -129,12 +205,48 @@ def wavelength_regrid(cube, rebinned, only_bandpass, type, header=None):
     return wl_cube, h
 
 def nm_to_cm1(spectrum, nm_axis, out_axis):
+    """
+    Interpolates a spectrum from a wavelength axis to a wavenulber axis
+
+    Parameters
+    ----------
+    spectrum : 1D :class:`~numpy:numpy.ndarray`
+        Input spectrum
+    nm_axis : 1D :class:`~numpy:numpy.ndarray`
+        Wavelength axis in Angstroms on which the spectrum is defined
+    out_axis : 1D :class:`~numpy:numpy.ndarray`
+        Wavenumber axis in cm-1 on which we want the spectrum to be interpolated
+
+    Returns
+    -------
+    out_spec : 1D :class:`~numpy:numpy.ndarray`
+        Interpolated spectrum
+
+    """
     cm1_axis = np.flip(1e8/nm_axis.astype(float),0)
     spectrum = np.flip(spectrum, 0)
     cm1_spectrum = UnivariateSpline(cm1_axis, spectrum.astype(float), s=0, k=1,ext=1)(out_axis.astype(float))
     return cm1_spectrum
 
 def swap_header_axis(h, a0, a1):
+    """
+    Swaps header keywords between dimensions.
+    Affects only keywords 'NAXIS', 'CRPIX', 'CRVAL', 'CDELT', 'CUNIT', 'CTYPE'.
+
+    Parameters
+    ----------
+    h : dict
+        The header to update
+    a0 : int
+        First index to swap from
+    a1 : int
+        Second index to swap to
+
+    Returns
+    -------
+    updated_h : dict
+        Updated header where dimensions have been interchanged
+    """
     keywords = ['NAXIS', 'CRPIX', 'CRVAL', 'CDELT', 'CUNIT', 'CTYPE']
     tmp = {}
     for k in keywords:
@@ -158,8 +270,15 @@ def filter_star_list(_star_list):
     """
     Very basic filter to remove stars position which are out of the image.
     Hard coded to an image of 2048*2064 pix
-    :param _star_list: the list of XY pixel coordinates
-    :return: the filtered list
+
+    Parameters
+    ----------
+    _star_list : :class:`~numpy:numpy.ndarray`
+        List of XY pixel coordinates
+    Returns
+    -------
+    filtered_list : :class:`~numpy:numpy.ndarray`
+        The filtered list
     """
     _star_list = np.copy(_star_list)
     for istar in range(_star_list.shape[0]):
@@ -171,22 +290,45 @@ def filter_star_list(_star_list):
     return _star_list
 def measure_dist(pos1,pos2):
     """
-    Measure the distance (norm 2) between two positions, in units of the position
-    :param pos1: the first position
-    :param pos2: the second position
-    :return: the distance (norm 2)
+    Measure the distance (norm 2) between two positions, in units of the position.
+    Can be used with vectors where each line is a [x,y] position.
+
+    Parameters
+    ----------
+    pos1 : :class:`~numpy:numpy.ndarray`
+        First position
+    pos2 : :class:`~numpy:numpy.ndarray`
+        Second position
+
+    Returns
+    -------
+    dist : :class:`~numpy:numpy.ndarray`
+        Distance (norm 2), same dimension as pos1
     """
     return np.sqrt((pos1[:,0] - pos2[:,0])**2+(pos1[:,1] - pos2[:,1])**2)
 def get_star_list(star_list_deg, im, hdr, dxmap, dymap):
     """
     Computes the pixel positions of a list of positions in degrees.
-    :param star_list_deg: a 2d array of object positions, in degree
-    :param im: the image on which this objects are supposed to be
-    :param hdr: the header of this image
-    :param dxmap: the dxmap correction to apply
-    :param dymap: the dymap correction to apply
-    :return: two lists of pixel poition : one that includes dxdymaps in the copmputation, one that doesn't
 
+    Parameters
+    ----------
+    star_list_deg : :class:`~numpy:numpy.ndarray`
+        A 2d array of object positions, in degrees
+    im : 2D :class:`~numpy:numpy.ndarray`
+        The image on which this objects are supposed to be
+    hdr : dict
+        The header of this image
+    dxmap : 2D :class:`~numpy:numpy.ndarray`
+        The dxmap correction to apply
+    dymap : 2D :class:`~numpy:numpy.ndarray`
+        The dymap correction to apply
+
+    Returns
+    -------
+    star_list_pix1 : :class:`~numpy:numpy.ndarray`
+        2d array of pixel positions where dx and dy maps **have not been used** in the computation
+    star_list_pix2 : :class:`~numpy:numpy.ndarray`
+        2d array of pixel positions where dx and dy maps **have been used** in the computation
     """
     #Star positions without dxdymaps
     dxmap_null = np.copy(dxmap)
@@ -207,7 +349,27 @@ def get_star_list(star_list_deg, im, hdr, dxmap, dymap):
 
 def stats_without_lines(spec, cube_axis, lines, v_min, v_max):
     """
-    Returns mean, median, std
+    Computes statistics on a spectrum when region around lines are excluded.
+    We translate a velocity range into a position range around the lines, and remove these regions to compute the mean, median and standard deviation of the spectrum.
+
+    Parameters
+    ----------
+    spec : 1D :class:`~numpy:numpy.ndarray`
+        Input spectrum
+    cube_axis : 1D :class:`~numpy:numpy.ndarray`
+        Wavenumber axis ([cm-1]) on which the spectrum is evaluated
+    lines : list of str
+        Names of the lines to exclude
+    v_min : float
+        Minimum velocity at which we expect the line to be present
+    v_max : float
+        Maximum velocity at which we expect the line to be present
+
+    Returns
+    -------
+    mean : float
+    median : float
+    std : float
     """
     from orb.utils.spectrum import line_shift
     from orb.core import Lines

@@ -1,15 +1,28 @@
+"""
+File containing helper functions to defines *regions* in the cube, in the format of tuple of indexes.
+"""
 import numpy as np
 import orb
 from scipy.interpolate import UnivariateSpline
 
+__all__ = ['circular_region', 'square_region', 'centered_square_region', 'physical_region', 'remap', 'get_contour_boundaries', 'fill_contour', 'smooth_contour', 'convert_contour']
 
 def circular_region(x, y, r):
     """
     Computes a circular region of radius r centered on (x,y)
-    :param x: abscissse of the center
-    :param y: ordonate of the center
-    :param r: radius of the region
-    :return region:
+
+    Parameters
+    ----------
+    x : int
+        abscissse of the center, in pixels
+    y : int
+        ordonate of the center, in pixels
+    r : float
+        radius of the region, in pixels
+    Returns
+    -------
+    region : tuple
+        The corresponding region
     """
     if r < 0: r = 0.001
     X, Y = np.mgrid[0:2048, 0:2064]
@@ -18,10 +31,19 @@ def circular_region(x, y, r):
 def square_region(x, y, b):
     """
     Computes a square region of size b*b
-    :param x: abscisse of the bottom left corner of the square
-    :param y: ordonate of the bottom left corner of the square
-    :param b: size of the square
-    :return region:
+
+    Parameters
+    ----------
+    x : int
+        abscisse of the bottom left corner of the square
+    y : int
+        ordonate of the bottom left corner of the square
+    b : int
+        size of the square
+    Returns
+    -------
+    region : tuple
+        The corresponding region
     """
     mask = np.zeros((2048, 2064))
     mask[x:x+b, y:y+b] = 1
@@ -29,10 +51,19 @@ def square_region(x, y, b):
 def centered_square_region(x,y,b):
     """
     Computes a square region of size b*b centered on x,y
-    :param x: abscisse of the center of the square
-    :param y: ordonate of the center of the square
-    :param b: size of the square
-    :return region:
+
+    Parameters
+    ----------
+    x : int
+        abscisse of the center of the square
+    y : int
+        rdonate of the center of the square
+    b : int
+        size of the square
+    Returns
+    -------
+    region : tuple
+        The corresponding region
     """
     mask = np.zeros((2048, 2064))
     if b%2 == 0:
@@ -51,14 +82,28 @@ def centered_square_region(x,y,b):
 def physical_region(cube, ra, dec, r = 2, circle=True, sex = True, centered=True):
     """
     Computes a physical region on a sitelle cube.
-    If circle = True (Default), it's a circulare region centered on ra,dec. Otherwise,
-    (ra,dec) are the coordinates of the bottom left corner of a square region
-    :param cube: the HDF5 cube
-    :param ra: right ascension in sexagesimal if sex = True, else in degrees
-    :param dec: declinaison in sexagesimal if sex = True, else in degrees
-    :param r: radius of the circle if circle=True, else size of the square
-    :param circle: If true, circular region, otherwise square
-    :param sex: If true, ra,dec expected to be in sexagesimal, otherwise in degrees
+    If circle = True (Default), it's a circulare region centered on ra,dec. Otherwise, (ra,dec) are the coordinates of the bottom left corner of a square region
+
+    Parameters
+    ----------
+    cube : :class:`~ORCS:orcs.process.SpectralCube`
+        The cube under consideration
+    ra : str or float
+        right ascension in sexagesimal in format 'xx:xx:xx' if sex = True, else in degrees
+    dec : str or float
+        declinaison in sexagesimal in format 'xx:xx:xx' if sex = True, else in degrees
+    r : float
+        radius in pixels of the circle if circle=True, else size of the square
+    circle : bool, Default = True
+        (Optional) If True, circular region, otherwise square
+    sex : bool, Default = True
+        (Optional) If True, ra,dec expected to be in sexagesimal, otherwise in degrees
+    centered : bool, Default = True
+        (Optional) If True, the square is a centered square
+    Returns
+    -------
+    region : tuple
+        The corresponding region
     """
     if sex:
         ra_sex = map(float, ra.split(':'))
@@ -79,8 +124,23 @@ def physical_region(cube, ra, dec, r = 2, circle=True, sex = True, centered=True
 def remap(map, binMap=None, binsize=None, original_shape = None):
     """
     Used to remap a binned map on a full map
-    User has to provide either a binMap or a binsize and an original shape
-    :param binMap: a map of original size filled with indices corresponding to the bin number in the binned map
+    User has to provide either a binMap, or a binsize and an original shape
+
+    Parameters
+    ----------
+    map : 2D :class:`~numpy:numpy.ndarray`
+        The binned data map
+    binMap : 2D :class:`~numpy:numpy.ndarray`
+        a map of original size filled with indices corresponding to the bin number in the binned map. Not needed if  ``binsize`` and ``original_shape`` are provided.
+    binsize : int
+        The binning size used. ``original_shape`` must be given as well
+    original_shape : tuple of int
+        The original shape (x,y).
+
+    Returns
+    -------
+    full_map : 2D :class:`~numpy:numpy.ndarray`
+        The full map containing the unbinned data
     """
     if binMap is None and (binsize is None or original_shape is None):
         raise ValueError("If no binMap is provided, both binsize and original_shape should be")
@@ -95,12 +155,27 @@ def remap(map, binMap=None, binsize=None, original_shape = None):
 
     return full_map
 
-
 def get_contour_boundaries(region):
     '''
-    Returns the contours of a region
-    :param region: tuple of array of indices; result from np.argwhere for example
-    :return contour: dict of 4 1-D regions defining the contour : top, bottom, left, right
+    DEPRECATED
+
+    Computes the contours of a regions.
+    Only works for reasonnably smooth regions (convex, ideally square or circle).
+    Boundaries are not necessary smooth (some indices may be missing)
+
+    Parameters
+    ----------
+    region : tuple of array of indices
+        The region from which we want boundaries
+
+    Returns
+    -------
+    contour : dict
+        A dict of 4 1-D regions defining the contour : top, bottom, left, right
+
+    See Also
+    --------
+    :func:`smooth_contour` to complete missing values
     '''
     X, Y = region[0], region[1]
     ymin = []
@@ -129,10 +204,18 @@ def get_contour_boundaries(region):
 
 def fill_contour(mask, contour):
     """
-    Fill the inside of a contour
-    :param mask: full map on wich the contour is defined
-    :param contour: dict of 4 1D regions : top, bottom, left, right
-    :return mask: the mask filled inside the contour
+    Fill the inside of a contour, to go back to the original region.
+
+    Parameters
+    ----------
+    mask : 2D :class:`~numpy:numpy.ndarray`
+        full map on wich the contour is defined
+    contour : dict
+        The dict of 4 1D regions : top, bottom, left, right (returned by :func:`get_contour_boundaries`)
+
+    Returns
+    -------
+    mask : the mask filled inside the contour
     """
     top_x = contour['top'][0]
     bottom_x = contour['top'][0]
@@ -150,8 +233,15 @@ def fill_contour(mask, contour):
 def smooth_contour(contour):
     """
     Smooth discontinuous contours
-    :param contour: dict of 4 1D regions : top, bottom, left, right
-    :return contour: continuous contour
+
+    Parameters
+    ----------
+    contour : dict
+        Contours of a region (see :func:`get_contour_boundaries`)
+    Returns
+    -------
+    contour : dict
+        A continuous contour
     """
     new_contour = {}
     _, a_left = contour['left']
@@ -186,11 +276,21 @@ def smooth_contour(contour):
 
 def convert_contour(original_cube,  contour, new_cube):
     """
-    Convert a contour computed on a given cube to a new cube
-    :param original_cube: the one on which the contour has been computed
-    :param new_cube: the one on which we want to project it
-    :param contour: the contour, i.e. a dict of 4 1D  regions : top, bottom, left, right
-    :return contour: the contour projected on the new cube
+    Convert a contour computed on a given cube to a new cube, using astrometric calibration. It allows to plot the same contoured region on different datacubes.
+
+    Parameters
+    ----------
+    original_cube : :class:`~ORCS:orcs.process.SpectralCube`
+        Cube on which the contour has been computed
+    new_cube : :class:`~ORCS:orcs.process.SpectralCube`
+        Cube on which we want to project the contour
+    contour : dict
+        the contour, i.e. a dict of 4 1D  regions : top, bottom, left, right
+
+    Returns
+    -------
+    contour : dict
+        the contour projected on the new cube
     """
     new_contour = {}
     for k in contour.keys():
