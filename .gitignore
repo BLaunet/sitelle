@@ -13,3 +13,11 @@
 scripts
 
 !docs
+!docs/_static
+docs/_build
+
+
+docs/api/*
+!docs/api/sitelle.process*
+
+cython_version.py

@@ -1,0 +1,12 @@
+astropy-sphinx-theme==1.0
+sphinx-automodapi==0.7
+astropy==2.0.5
+path.py==10.5
+pandas==0.22.0
+matplotlib==2.2.2
+scipy==1.0.0
+numpy==1.14.2
+nbsphinx==0.3.3
+pandoc
+jupyter_client
+ipython
