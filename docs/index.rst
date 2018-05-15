@@ -21,7 +21,7 @@ and `ORB <http://132.203.11.199/orb-doc/index.html>`_ packages, and extends them
 
 Most notable points are :
    * Algorithm of source detection and fitting
-   * Interfacing with `Nburst method <https://arxiv.org/abs/0709.3047>`_ for galaxy continuum fitting
+   * Interfacing with `Nburst method <https://arxiv.org/abs/0709.3047>`_ for galaxy continuum fitting. See also `examples <nburst_example.ipynb>`_
 
 Installation
 ------------
@@ -50,6 +50,7 @@ User documentation
 .. toctree::
    :maxdepth: 1
 
+   tips-tricks.ipynb
    sources_example.ipynb
    nburst_example.ipynb
 
