@@ -37,7 +37,9 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
               'sphinx_automodapi.automodapi',
               'sphinx.ext.intersphinx',
-              'sphinx_automodapi.smart_resolver']
+              'sphinx_automodapi.smart_resolver',
+              'nbsphinx',
+              'IPython.sphinxext.ipython_console_highlighting']
 
 intersphinx_mapping = {'numpy': ('https://docs.scipy.org/doc/numpy/', None),
                        'astropy': ('http://docs.astropy.org/en/stable/', None),
@@ -47,6 +49,8 @@ intersphinx_mapping = {'numpy': ('https://docs.scipy.org/doc/numpy/', None),
                        'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
                        'plt': ('https://matplotlib.org/', None),
                        'photutils': ('http://photutils.readthedocs.io/en/stable/', None)}
+
+nbsphinx_execute = 'never'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -84,7 +88,7 @@ language = 'python2'
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '.ipynb_checkpoints/*']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'

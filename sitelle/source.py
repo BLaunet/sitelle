@@ -2,23 +2,30 @@
 This module groups convenience methods used when dealing with point-like sources.
 """
 import numpy as np
-from sitelle.region import centered_square_region
-from sitelle.plot import *
-from photutils import CircularAperture, CircularAnnulus, EllipticalAperture
-from photutils import DAOStarFinder, IRAFStarFinder
-from photutils import find_peaks, detect_sources, deblend_sources, source_properties
-from scipy.interpolate import UnivariateSpline
-from astropy.stats import sigma_clipped_stats
-from orb.astrometry import Astrometry
-from astropy.convolution import Gaussian2DKernel, Box2DKernel
-from astropy.table import Table
-from orb.utils import vector
+import matplotlib.pyplot as plt
 from numbers import Number
-from orcs.utils import fit_lines_in_spectrum
-from astropy.units.quantity import Quantity
 import warnings
 import logging
 import pandas as pd
+
+from astropy.convolution import Gaussian2DKernel, Box2DKernel
+from astropy.table import Table
+from astropy.stats import sigma_clipped_stats
+from astropy.units.quantity import Quantity
+
+from sitelle.region import centered_square_region
+from sitelle.plot import *
+
+from photutils import CircularAperture, CircularAnnulus, EllipticalAperture
+from photutils import DAOStarFinder, IRAFStarFinder
+from photutils import find_peaks, detect_sources, deblend_sources, source_properties
+
+from scipy.interpolate import UnivariateSpline
+
+from orb.astrometry import Astrometry
+from orb.utils import vector
+from orcs.utils import fit_lines_in_spectrum
+
 
 __all__ = ['mask_sources', 'filter_frame', 'extract_max_frame', 'estimate_local_background', 'extract_point_source', 'check_source', 'measure_coherence', 'measure_source_fwhm', 'get_sources', 'analyse_source']
 def mask_sources(sources, annulus):
@@ -432,7 +439,10 @@ def analyse_source(source, cube, plot=False, return_fit_params=False):
             raise ValueError(filter_name)
 
         ## We build a flux map of the detected lines
-        detected_lines = [line_name for line_name in LINES if source['%s_detected'%line_name.lower().replace('[', '').replace(']', '')]]
+        try:
+            detected_lines = [line_name for line_name in LINES if source['%s_detected'%line_name.lower().replace('[', '').replace(']', '')]]
+        except KeyError as e:
+            raise ValueError('No columns *_detected in the source')
         if detected_lines == []:
             return pd.Series(result)
 
