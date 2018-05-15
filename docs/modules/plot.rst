@@ -1,10 +1,10 @@
-.. _sitelle-nburst:
+.. _sitelle-plot:
 
 *********************************
-nburst (`sitelle.nburst`)
+Plot (`sitelle.plot`)
 *********************************
 
-.. currentmodule:: sitelle.nburst
+.. currentmodule:: sitelle.plot
 
 Introduction
 ============
@@ -12,4 +12,4 @@ Introduction
 
 Reference/API
 =============
-.. automodapi:: sitelle.nburst
+.. automodapi:: sitelle.plot

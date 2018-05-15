@@ -1,10 +1,10 @@
-.. _sitelle-process:
+.. _sitelle-source:
 
 *********************************
-process (`sitelle.process`)
+Source (`sitelle.source`)
 *********************************
 
-.. currentmodule:: sitelle.process
+.. currentmodule:: sitelle.source
 
 Introduction
 ============
@@ -12,4 +12,4 @@ Introduction
 
 Reference/API
 =============
-.. automodapi:: sitelle.process
+.. automodapi:: sitelle.source

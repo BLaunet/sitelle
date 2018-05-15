@@ -1,10 +1,10 @@
-.. _sitelle-utils:
+.. _sitelle-parallel:
 
 *********************************
-utils (`sitelle.utils`)
+Parallel (`sitelle.parallel`)
 *********************************
 
-.. currentmodule:: sitelle.utils
+.. currentmodule:: sitelle.parallel
 
 Introduction
 ============
@@ -12,4 +12,4 @@ Introduction
 
 Reference/API
 =============
-.. automodapi:: sitelle.utils
+.. automodapi:: sitelle.parallel

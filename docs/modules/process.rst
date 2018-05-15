@@ -1,10 +1,10 @@
-.. _sitelle-parallel:
+.. _sitelle-process:
 
 *********************************
-parallel (`sitelle.parallel`)
+Process (`sitelle.process`)
 *********************************
 
-.. currentmodule:: sitelle.parallel
+.. currentmodule:: sitelle.process
 
 Introduction
 ============
@@ -12,4 +12,4 @@ Introduction
 
 Reference/API
 =============
-.. automodapi:: sitelle.parallel
+.. automodapi:: sitelle.process

@@ -1,7 +1,7 @@
 .. _sitelle-fit:
 
 *********************************
-fit (`sitelle.fit`)
+Fit (`sitelle.fit`)
 *********************************
 
 .. currentmodule:: sitelle.fit

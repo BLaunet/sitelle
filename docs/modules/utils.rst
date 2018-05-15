@@ -1,10 +1,10 @@
-.. _sitelle-region:
+.. _sitelle-utils:
 
 *********************************
-region (`sitelle.region`)
+Utils (`sitelle.utils`)
 *********************************
 
-.. currentmodule:: sitelle.region
+.. currentmodule:: sitelle.utils
 
 Introduction
 ============
@@ -12,4 +12,4 @@ Introduction
 
 Reference/API
 =============
-.. automodapi:: sitelle.region
+.. automodapi:: sitelle.utils
