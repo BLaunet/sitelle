@@ -9,6 +9,7 @@ Region (`sitelle.region`)
 Introduction
 ============
 
+Convenience functions to create **regions**
 
 Reference/API
 =============

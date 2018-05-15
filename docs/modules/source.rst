@@ -9,6 +9,7 @@ Source (`sitelle.source`)
 Introduction
 ============
 
+Some methods to extract and analyse point-like sources.
 
 Reference/API
 =============

@@ -9,6 +9,7 @@ Utils (`sitelle.utils`)
 Introduction
 ============
 
+Miscellaneous functions, some of them are deprecated
 
 Reference/API
 =============
