@@ -90,7 +90,7 @@ def lines_pos(lines_name, v, wavenumber=False):
         (Optional) If True, the position in cm-1 is returned, else in Angstroms.
     See Also
     --------
-    `constants.SN2_LINES`, `constants.SN3_LINES`)
+    **SN2_LINES** and **SN3_LINES** in :mod:`sitelle.constants` for line names
     """
     if wavenumber is True:
         return [(wn*(1+v/3e5)) for wn in Lines().get_line_cm1(lines_name)]

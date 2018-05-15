@@ -321,7 +321,7 @@ def guess_source_velocity(spectrum, cube, v_min = -800., v_max = 50., debug=Fals
     debug : bool
         (Optional) If True, a debug id displayed (default = False)
     lines : list of str
-        (Optional) Names of the rest line candidates for the observed line. If None, the lines in the filter of the cube are used (see `~sitelle.constants.SN2_LINES` and `~sitelle.constants.SN3_LINES`)
+        (Optional) Names of the rest line candidates for the observed line. If None, the lines in the filter of the cube are used (see **SN2_LINES** and **SN3_LINES** in :mod:`~sitelle.constants`)
     force : bool
         (Optional) If True, a velocity guess is outputed no matter it's compatibility with the velocity range input. Should be used only when ``lines`` is restricted to one element.
     return_line : bool
@@ -805,7 +805,7 @@ def fit_SN2(source, cube, v_guess = None, v_min = -800., v_max = 0., lines=None,
 def fit_SN3(source, cube, v_guess = None, lines=None, return_fit_params = False, kwargs_spec={}, kwargs_bkg = {}, debug=False):
     """
     Function specialized to fit sources found in the SN3 cube. The background spectrum is not fitted, due to the presence of sky lines that would bias the estimation of the velocity.
-    It looks very similar to :func:`fit_SN2`and the code should be refactored.
+    | It looks very similar to :func:`fit_SN2` and the code should be refactored.
     It differs however in the philosophy behind the velocity estimation : this method has been designed to be performed after a SN2 fit, from which we already estimated the velocity of the source. Thus no guess is performed here.
 
     The method can be used in a parallel process.
