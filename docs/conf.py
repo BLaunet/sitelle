@@ -188,5 +188,16 @@ class Mock(MagicMock):
     def __getattr__(cls, name):
         return MagicMock()
 
-MOCK_MODULES = ['orb', 'orb.fit', 'orb.utils', 'orb.utils.spectrum', 'orb.utils.vector', 'orb.utils.parallel', 'orb.astrometry', 'orcs', 'orcs.process', 'orcs.utils', 'orcs.core', 'photutils', 'gvar', 'dill']
+MOCK_MODULES = ['orb',
+                'orb.fit',
+                'orb.utils', 'orb.utils.spectrum', 'orb.utils.vector', 'orb.utils.parallel',
+                'orb.astrometry',
+                'orcs',
+                'orcs.process',
+                'orcs.utils',
+                'orcs.core',
+                'gvar',
+                'dill',
+                'photutils']
+
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
