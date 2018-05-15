@@ -1,7 +1,14 @@
-"""
-File defining an overload of :class:`ORCS:orcs.process.SpectralCube`, to extend or correct some behaviors.
-"""
-from orcs.process import SpectralCube
+#Tweak for documentation building
+import os
+ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
+ON_SPHINX = 'sphinx-build' in os.environ.get('_', '')
+if not ON_RTD and not ON_SPHINX:
+    from orcs.process import SpectralCube
+else:
+    class SpectralCube(object):
+        pass
+
+    
 import logging
 import numpy as np
 import orb
@@ -13,7 +20,12 @@ from orb.utils.parallel import init_pp_server, close_pp_server
 from orcs.core import Filter
 
 __all__ = ['SpectralCubePatch']
+
 class SpectralCubePatch(SpectralCube):
+    """
+    Overload of :class:`ORCS:orcs.process.SpectralCube`, to extend or correct some behaviors.
+
+    """
 
     def get_filter_range(self, wavenumber=True):
         """
