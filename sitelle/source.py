@@ -353,7 +353,7 @@ def get_sources(detection_frame, mask=False, sigma = 5.0, mode='DAO', fwhm = 2.5
     else:
         return df
 
-def analyse_source(source, cube, plot=False, return_fit_params=False):
+def analyse_source(source, cube, plot=False, return_fit_params=False, debug=False):
     """
     Convenience method to spatially analyse a source.
     A 30x30 pixels 'flux map' is build from the sum of a few frames around each detected lines for the source.
@@ -583,5 +583,9 @@ def analyse_source(source, cube, plot=False, return_fit_params=False):
         else:
             return pd.Series(result)
     except Exception as e:
-        print e
-        return pd.Series(result)
+        if not debug:
+            print e
+            return pd.Series(result)
+        else:
+            import sys
+            raise e, None, sys.exc_info()[2]
