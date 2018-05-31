@@ -10,8 +10,7 @@
 
 !sitelle
 
-!scripts
-scripts/AnneLaure/*
+scripts
 
 !docs
 !docs/_static

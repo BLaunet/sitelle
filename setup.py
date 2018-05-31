@@ -5,7 +5,7 @@ packages = find_packages(where=".")
 setup(
     name="sitelle",
     packages=packages,
-    url='https://gitlab.ethz.ch/blaunet/sitelle',
+    url='https://github.com/BLaunet/sitelle',
     author='Barthelemy Launet',
     author_email='barthelemy.launet@obspm.fr',
     maintainer='Barthelemy Launet',
