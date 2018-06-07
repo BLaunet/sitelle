@@ -179,7 +179,7 @@ class NburstFitter():
     idl_startup_script = "~/.idl/start.pro"
 
     @classmethod
-    def set_env(cls, machine):
+    def set_env(cls, machine, user):
         '''
         Sets the right value for ``nburst_working_dir`` and ``idl_binary_path``, depending on the machine. This has been specifically implemented for B. Launet and should be modified when used by others.
 
@@ -189,7 +189,7 @@ class NburstFitter():
             hostname of the machine
         '''
         if machine == 'tycho':
-            cls.nburst_working_dir = Path('/obs/blaunet/nburst/')
+            cls.nburst_working_dir = Path('/obs/%s/nburst/'%user)
             cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
         elif machine == 'barth':
             cls.nburst_working_dir = Path('/Volumes/TOSHIBA/M31/nburst/')
@@ -649,7 +649,7 @@ class NburstFitterList():
     idl_startup_script = "~/.idl/start.pro"
 
     @classmethod
-    def set_env(cls, machine):
+    def set_env(cls, machine, user):
         '''
         Sets the right value for ``nburst_working_dir`` and ``idl_binary_path``, depending on the machine. This has been specifically implemented for B. Launet and should be modified when used by others.
 
@@ -659,7 +659,7 @@ class NburstFitterList():
             hostname of the machine
         '''
         if machine == 'tycho':
-            cls.nburst_working_dir = Path('/obs/blaunet/nburst/')
+            cls.nburst_working_dir = Path('/obs/%s/nburst/'%user)
             cls.idl_binary_path = "/usr/local/idl/bin:/usr/local/idl/bin/bin.linux.x86_64:"
         elif machine == 'barth':
             cls.nburst_working_dir = Path('/Volumes/TOSHIBA/M31/nburst/')
@@ -747,8 +747,9 @@ class NburstFitterList():
 
 
 if 'johannes' in socket.gethostname() or 'tycho' in socket.gethostname():
-    NburstFitter.set_env('tycho')
-    NburstFitterList.set_env('tycho')
+    NburstFitter.set_env('tycho', os.getenv('USER'))
+    NburstFitterList.set_env('tycho', os.getenv('USER'))
 if 'MacBookAirdeBarthelemy' in socket.gethostname():
-    NburstFitter.set_env('barth')
-    NburstFitterList.set_env('barth')
+    NburstFitter.set_env('barth', os.getenv('USER'))
+    NburstFitterList.set_env('barth', os.getenv('USER'))
+
